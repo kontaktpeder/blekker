@@ -84,14 +84,21 @@ export const createSongFromInput = createServerFn({ method: "POST" })
     let source = data.rawInput?.trim() ?? "";
 
     // 1) If a URL is given, fetch its text content
+    let fetchError: string | null = null;
     if (data.sourceUrl) {
       try {
         const res = await fetch(data.sourceUrl, {
-          headers: { "User-Agent": "Stagechart/1.0" },
+          headers: {
+            "User-Agent":
+              "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+            Accept: "text/html,application/xhtml+xml",
+            "Accept-Language": "en-US,en;q=0.9",
+          },
         });
-        if (res.ok) {
+        if (!res.ok) {
+          fetchError = `URL returned ${res.status}. Many sites (e.g. Ultimate Guitar) block scraping — paste the chord text directly instead.`;
+        } else {
           const html = await res.text();
-          // crude strip — model will tolerate noise
           const text = html
             .replace(/<script[\s\S]*?<\/script>/gi, "")
             .replace(/<style[\s\S]*?<\/style>/gi, "")
@@ -99,14 +106,23 @@ export const createSongFromInput = createServerFn({ method: "POST" })
             .replace(/\n{3,}/g, "\n\n")
             .trim()
             .slice(0, 25000);
-          source = source ? `${source}\n\n---\n\n${text}` : text;
+          if (text.length < 50) {
+            fetchError = "The page returned no readable text (likely JS-rendered). Paste the chord text directly.";
+          } else {
+            source = source ? `${source}\n\n---\n\n${text}` : text;
+          }
         }
       } catch (e) {
         console.error("URL fetch failed", e);
+        fetchError = `Could not reach that URL: ${e instanceof Error ? e.message : "unknown error"}`;
       }
     }
 
-    if (!source) throw new Error("Could not get any content from the input.");
+    if (!source) {
+      throw new Error(
+        fetchError ?? "No content provided. Paste chords/lyrics or a working URL.",
+      );
+    }
 
     // 2) Call Lovable AI with strict JSON instruction
     const apiKey = process.env.LOVABLE_API_KEY;
