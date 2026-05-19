@@ -32,19 +32,22 @@ export function SongChart({ song }: Props) {
   const showNotes = mode === "full" || mode === "live";
   const lyricsOn = showLyrics && (mode === "full" || mode === "live");
 
-  // Autoscroll: pixels per second per speed step
+  // Autoscroll: keep a virtual scroll position so slow/medium speeds don't get
+  // rounded away by browsers that quantize scrollTop writes per frame.
   useEffect(() => {
     if (!isLive || scrollSpeed === 0) return;
     const el = scrollRef.current;
     if (!el) return;
-    const pxPerSec = scrollSpeed === 1 ? 14 : scrollSpeed === 2 ? 40 : 85;
+    const pxPerSec = scrollSpeed === 1 ? 24 : scrollSpeed === 2 ? 52 : 96;
     let raf = 0;
     let last = performance.now();
+    let scrollPosition = el.scrollTop;
     const tick = (now: number) => {
       const dt = (now - last) / 1000;
       last = now;
-      el.scrollTop += pxPerSec * dt;
-      if (el.scrollTop + el.clientHeight >= el.scrollHeight - 1) return;
+      scrollPosition = Math.min(scrollPosition + pxPerSec * dt, el.scrollHeight - el.clientHeight);
+      el.scrollTop = scrollPosition;
+      if (scrollPosition >= el.scrollHeight - el.clientHeight - 1) return;
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
