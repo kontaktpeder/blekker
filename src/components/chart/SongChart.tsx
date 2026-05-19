@@ -170,6 +170,18 @@ export function SongChart({ song }: Props) {
               <Plus className="h-4 w-4" />
             </button>
           </div>
+          {/* Autoscroll speed cycle: off → slow → med → fast → off */}
+          <button
+            onClick={() => setScrollSpeed((s) => (s + 1) % 4)}
+            className="flex items-center gap-1 px-2 py-1.5 hover:bg-accent rounded border-l border-border ml-1"
+            aria-label="Autoscroll speed"
+            title="Autoscroll"
+          >
+            {scrollSpeed === 0 ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+            <span className="text-[10px] tracking-[0.15em] w-8 text-center">
+              {scrollSpeed === 0 ? "OFF" : scrollSpeed === 1 ? "SLOW" : scrollSpeed === 2 ? "MED" : "FAST"}
+            </span>
+          </button>
           <button
             onClick={() => setShowLyrics((v) => !v)}
             className="p-1.5 hover:bg-accent rounded border-l border-border ml-1 pl-2"
@@ -189,11 +201,13 @@ export function SongChart({ song }: Props) {
 
       {/* Body */}
       <div
+        ref={scrollRef}
         className={cn(
           "flex-1 overflow-y-auto",
           isLive ? "px-6 md:px-12 py-8" : "px-5 md:px-8 py-6"
         )}
       >
+
         {isLive && (
           <div className="mb-8">
             <h1 className="font-semibold tracking-tight leading-none text-balance text-4xl md:text-6xl">
