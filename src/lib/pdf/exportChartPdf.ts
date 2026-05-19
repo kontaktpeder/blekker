@@ -7,7 +7,6 @@ interface ExportOptions {
   song: Song;
   semitones: number;
   showLyrics: boolean;
-  orientation?: "portrait" | "landscape";
 }
 
 function slugify(s: string): string {
@@ -26,14 +25,18 @@ export function buildFilename(song: Song, semitones: number): string {
   return `${parts.join("-")}.pdf`;
 }
 
+const A4_W_MM = 210;
+const A4_H_MM = 297;
+const MARGIN_MM = 12;
+const CONTENT_W_MM = A4_W_MM - MARGIN_MM * 2;
+const CONTENT_H_MM = A4_H_MM - MARGIN_MM * 2;
+const GAP_MM = 3;
+
 export async function exportChartPdf({
   song,
   semitones,
   showLyrics,
-  orientation = "portrait",
 }: ExportOptions): Promise<void> {
-  // Mount printable in an offscreen container so html2canvas can capture it
-  // at a fixed A4 width regardless of viewport.
   const host = document.createElement("div");
   host.style.position = "fixed";
   host.style.left = "-10000px";
@@ -46,45 +49,79 @@ export async function exportChartPdf({
   try {
     await new Promise<void>((resolve) => {
       root.render(createElement(PrintableChart, { song, semitones, showLyrics }));
-      // Give layout/fonts a tick to settle.
       requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
     });
 
-    const target = host.firstElementChild as HTMLElement | null;
-    if (!target) throw new Error("Failed to render printable chart");
+    const container = host.firstElementChild as HTMLElement | null;
+    if (!container) throw new Error("Failed to render printable chart");
 
-    const html2pdf = (await import("html2pdf.js")).default;
+    const sections = Array.from(
+      container.querySelectorAll<HTMLElement>("[data-pdf-section]"),
+    );
+    if (sections.length === 0) throw new Error("No sections to export");
 
-    const opts = {
-      margin: [10, 10, 12, 10],
-      filename: buildFilename(song, semitones),
-      image: { type: "jpeg", quality: 0.98 },
-      html2canvas: {
+    const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+      import("html2canvas"),
+      import("jspdf"),
+    ]);
+
+    // Render each section to an image, then paginate (max 2 pages target).
+    const rendered: { dataUrl: string; heightMM: number }[] = [];
+    for (const el of sections) {
+      const canvas = await html2canvas(el, {
         scale: 2,
         useCORS: true,
         backgroundColor: "#ffffff",
-        windowWidth: 794,
-        onclone: (clonedDocument: Document) => {
-          // html2canvas cannot parse the app theme's oklch() CSS tokens.
-          // The printable chart is fully inline-styled, so strip app styles
-          // from the cloned document before html2canvas computes colors.
-          clonedDocument
-            .querySelectorAll('style, link[rel="stylesheet"]')
-            .forEach((node) => node.remove());
-
-          clonedDocument.documentElement.style.background = "#ffffff";
-          clonedDocument.body.style.background = "#ffffff";
-          clonedDocument.body.style.color = "#000000";
+        logging: false,
+        onclone: (doc) => {
+          doc.querySelectorAll('style, link[rel="stylesheet"]').forEach((n) => n.remove());
+          doc.documentElement.style.background = "#ffffff";
+          doc.body.style.background = "#ffffff";
+          doc.body.style.color = "#000000";
         },
-      },
-      jsPDF: { unit: "mm", format: "a4", orientation },
-      pagebreak: { mode: ["css", "avoid-all"] },
-    };
+      });
+      const pxW = canvas.width / 2;
+      const pxH = canvas.height / 2;
+      const scale = CONTENT_W_MM / pxW;
+      rendered.push({
+        dataUrl: canvas.toDataURL("image/jpeg", 0.92),
+        heightMM: pxH * scale,
+      });
+    }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (html2pdf() as any).from(target).set(opts).save();
+    // Try to fit on 2 pages. If natural height exceeds, scale all sections down.
+    const totalHeight =
+      rendered.reduce((sum, r) => sum + r.heightMM, 0) +
+      GAP_MM * (rendered.length - 1);
+    const twoPageCapacity = CONTENT_H_MM * 2 - GAP_MM * (rendered.length - 1);
+    const shrink = totalHeight > twoPageCapacity ? twoPageCapacity / totalHeight : 1;
+
+    const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+    let y = MARGIN_MM;
+    let pageIdx = 0;
+
+    for (const r of rendered) {
+      const h = r.heightMM * shrink;
+      const w = CONTENT_W_MM * shrink;
+      // If this section doesn't fit in remaining space, new page.
+      if (y + h > A4_H_MM - MARGIN_MM && y > MARGIN_MM) {
+        if (pageIdx < 1) {
+          pdf.addPage();
+          pageIdx++;
+          y = MARGIN_MM;
+        } else {
+          // Already on last allowed page — keep going but allow overflow page.
+          pdf.addPage();
+          pageIdx++;
+          y = MARGIN_MM;
+        }
+      }
+      pdf.addImage(r.dataUrl, "JPEG", MARGIN_MM, y, w, h);
+      y += h + GAP_MM;
+    }
+
+    pdf.save(buildFilename(song, semitones));
   } finally {
-    // Defer unmount to next tick to avoid React warning.
     setTimeout(() => {
       root.unmount();
       host.remove();
