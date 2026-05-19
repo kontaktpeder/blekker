@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Minus, Plus, Eye, EyeOff, Maximize2, X, Play, Pause, Rabbit } from "lucide-react";
+import { Minus, Plus, Eye, EyeOff, Maximize2, X, Play, Pause } from "lucide-react";
 import { transposeKey, type Song } from "@/lib/music";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
