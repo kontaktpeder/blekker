@@ -61,7 +61,20 @@ export function SongChart({ song }: Props) {
   useEffect(() => {
     if (!isLive) setScrollSpeed(0);
   }, [isLive]);
-
+  async function handleExport() {
+    if (exporting) return;
+    setExporting(true);
+    const t = toast.loading("Lager PDF…");
+    try {
+      await exportChartPdf({ song, semitones, showLyrics });
+      toast.success("PDF klar", { id: t });
+    } catch (err) {
+      console.error(err);
+      toast.error("Kunne ikke lage PDF", { id: t });
+    } finally {
+      setExporting(false);
+    }
+  }
 
 
   return (
