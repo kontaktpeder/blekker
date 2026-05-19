@@ -57,22 +57,21 @@ export async function exportChartPdf({
 
     const html2pdf = (await import("html2pdf.js")).default;
 
-    await html2pdf()
-      .from(target)
-      .set({
-        margin: [10, 10, 12, 10],
-        filename: buildFilename(song, semitones),
-        image: { type: "jpeg", quality: 0.98 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: "#ffffff",
-          windowWidth: 794,
-        },
-        jsPDF: { unit: "mm", format: "a4", orientation },
-        pagebreak: { mode: ["css", "avoid-all"] },
-      })
-      .save();
+    const opts = {
+      margin: [10, 10, 12, 10],
+      filename: buildFilename(song, semitones),
+      image: { type: "jpeg", quality: 0.98 },
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        windowWidth: 794,
+      },
+      jsPDF: { unit: "mm", format: "a4", orientation },
+      pagebreak: { mode: ["css", "avoid-all"] },
+    } as unknown as Parameters<ReturnType<typeof html2pdf>["set"]>[0];
+
+    await html2pdf().from(target).set(opts).save();
   } finally {
     // Defer unmount to next tick to avoid React warning.
     setTimeout(() => {
