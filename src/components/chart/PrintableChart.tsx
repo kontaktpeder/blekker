@@ -1,15 +1,4 @@
-import { transposeChord, transposeKey, type Song, type SectionType } from "@/lib/music";
-
-// Print-safe hex palette (html2canvas can't parse oklch()).
-const PRINT_SECTION_COLOR: Record<SectionType, string> = {
-  intro: "#6b7280",
-  verse: "#2563eb",
-  chorus: "#dc2626",
-  bridge: "#9333ea",
-  outro: "#0f172a",
-  interlude: "#6b7280",
-  solo: "#9333ea",
-};
+import { transposeChord, transposeKey, type Song } from "@/lib/music";
 
 interface Props {
   song: Song;
@@ -18,8 +7,9 @@ interface Props {
 }
 
 /**
- * Print-friendly A4 layout. Renders pure HTML/inline-styles so html2canvas
- * captures it consistently without depending on app theme tokens.
+ * Print-friendly A4 layout. Pure inline styles, black & white only.
+ * Each section is tagged with data-pdf-section so the exporter can paginate
+ * cleanly without splitting sections across pages.
  */
 export function PrintableChart({ song, semitones, showLyrics }: Props) {
   const displayKey = transposeKey(song.key, semitones);
@@ -28,47 +18,40 @@ export function PrintableChart({ song, semitones, showLyrics }: Props) {
     <div
       className="printable-chart"
       style={{
-        width: "794px", // A4 @ 96dpi portrait
-        padding: "40px 44px",
+        width: "794px",
+        padding: "28px 32px",
         background: "#ffffff",
-        color: "#0a0a0a",
+        color: "#000000",
         fontFamily:
           "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
-        fontSize: "12px",
-        lineHeight: 1.45,
+        fontSize: "11px",
+        lineHeight: 1.35,
         boxSizing: "border-box",
       }}
     >
-      {/* Header */}
       <header
+        data-pdf-section
         style={{
-          borderBottom: "2px solid #0a0a0a",
-          paddingBottom: 14,
-          marginBottom: 18,
+          borderBottom: "1.5px solid #000",
+          paddingBottom: 8,
+          marginBottom: 10,
           display: "flex",
           justifyContent: "space-between",
           alignItems: "flex-end",
-          gap: 24,
+          gap: 20,
         }}
       >
         <div style={{ minWidth: 0 }}>
-          <h1
-            style={{
-              fontSize: 26,
-              fontWeight: 700,
-              margin: 0,
-              letterSpacing: "-0.01em",
-            }}
-          >
+          <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, letterSpacing: "-0.01em" }}>
             {song.title}
           </h1>
           <p
             style={{
-              margin: "4px 0 0",
-              fontSize: 11,
-              letterSpacing: "0.18em",
+              margin: "2px 0 0",
+              fontSize: 10,
+              letterSpacing: "0.16em",
               textTransform: "uppercase",
-              color: "#555",
+              color: "#000",
             }}
           >
             {song.artist}
@@ -77,9 +60,9 @@ export function PrintableChart({ song, semitones, showLyrics }: Props) {
         <div
           style={{
             fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-            fontSize: 11,
+            fontSize: 10,
             display: "flex",
-            gap: 18,
+            gap: 14,
             whiteSpace: "nowrap",
           }}
         >
@@ -90,34 +73,32 @@ export function PrintableChart({ song, semitones, showLyrics }: Props) {
         </div>
       </header>
 
-      {/* Form */}
       {song.form.length > 0 && (
-        <section style={{ marginBottom: 18 }}>
+        <section data-pdf-section style={{ marginBottom: 10 }}>
           <p
             style={{
               fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-              fontSize: 9,
+              fontSize: 8,
               letterSpacing: "0.2em",
               textTransform: "uppercase",
-              color: "#777",
-              margin: "0 0 6px",
+              color: "#000",
+              margin: "0 0 4px",
             }}
           >
             Form
           </p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
             {song.form.map((f, i) => (
               <span
                 key={i}
                 style={{
-                  border: "1px solid #d4d4d4",
-                  borderRadius: 4,
-                  padding: "3px 8px",
-                  fontSize: 10,
-                  fontFamily:
-                    "ui-monospace, SFMono-Regular, Menlo, monospace",
+                  border: "1px solid #000",
+                  borderRadius: 3,
+                  padding: "2px 6px",
+                  fontSize: 9,
+                  fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
                   textTransform: "uppercase",
-                  letterSpacing: "0.1em",
+                  letterSpacing: "0.08em",
                 }}
               >
                 {f}
@@ -127,174 +108,139 @@ export function PrintableChart({ song, semitones, showLyrics }: Props) {
         </section>
       )}
 
-      {/* Sections */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {song.sections.map((s) => {
-          const color = PRINT_SECTION_COLOR[s.type];
-          return (
-            <section
-              key={s.id}
-              className="print-section"
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {song.sections.map((s) => (
+          <section
+            key={s.id}
+            data-pdf-section
+            style={{
+              border: "1px solid #000",
+              borderRadius: 4,
+              padding: "8px 10px",
+              background: "#fff",
+            }}
+          >
+            <div
               style={{
-                border: "1px solid #e5e5e5",
-                borderLeft: `4px solid ${color}`,
-                borderRadius: 6,
-                padding: "10px 14px",
-                pageBreakInside: "avoid",
-                breakInside: "avoid",
-                background: "#fff",
+                display: "flex",
+                alignItems: "baseline",
+                justifyContent: "space-between",
+                gap: 10,
+                marginBottom: 6,
               }}
             >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "baseline",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  marginBottom: 8,
-                }}
-              >
-                <div
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                <h2
                   style={{
-                    display: "flex",
-                    alignItems: "baseline",
-                    gap: 10,
+                    margin: 0,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    color: "#000",
                   }}
                 >
-                  <h2
-                    style={{
-                      margin: 0,
-                      fontSize: 14,
-                      fontWeight: 700,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      color,
-                    }}
-                  >
-                    {s.name}
-                  </h2>
-                  {s.repeat && s.repeat > 1 && (
-                    <span
-                      style={{
-                        fontFamily:
-                          "ui-monospace, SFMono-Regular, Menlo, monospace",
-                        fontSize: 10,
-                        color: "#666",
-                      }}
-                    >
-                      ×{s.repeat}
-                    </span>
-                  )}
-                </div>
-                <span
-                  style={{
-                    fontFamily:
-                      "ui-monospace, SFMono-Regular, Menlo, monospace",
-                    fontSize: 10,
-                    color: "#666",
-                  }}
-                >
-                  {s.bars} bars
-                </span>
-              </div>
-
-              {/* Chord grid */}
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(4, 1fr)",
-                  gap: 6,
-                }}
-              >
-                {s.chords.map((c, i) => {
-                  const isRest = c === "%" || c === "-";
-                  return (
-                    <div
-                      key={i}
-                      style={{
-                        border: "1px solid #d4d4d4",
-                        borderRadius: 4,
-                        padding: "8px 4px",
-                        textAlign: "center",
-                        fontFamily:
-                          "ui-monospace, SFMono-Regular, Menlo, monospace",
-                        fontWeight: 600,
-                        fontSize: 14,
-                        color: isRest ? "#999" : "#0a0a0a",
-                        background: "#fafafa",
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                      }}
-                    >
-                      {transposeChord(c, semitones)}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {showLyrics && s.lyrics && (
-                <p
-                  style={{
-                    marginTop: 10,
-                    marginBottom: 0,
-                    whiteSpace: "pre-line",
-                    fontSize: 11,
-                    color: "#1a1a1a",
-                    lineHeight: 1.5,
-                  }}
-                >
-                  {s.lyrics}
-                </p>
-              )}
-
-              {s.notes && (
-                <p
-                  style={{
-                    marginTop: 8,
-                    marginBottom: 0,
-                    fontSize: 10,
-                    fontStyle: "italic",
-                    color: "#666",
-                  }}
-                >
+                  {s.name}
+                </h2>
+                {s.repeat && s.repeat > 1 && (
                   <span
                     style={{
-                      fontFamily:
-                        "ui-monospace, SFMono-Regular, Menlo, monospace",
-                      fontStyle: "normal",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.15em",
+                      fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
                       fontSize: 9,
-                      marginRight: 6,
-                      color: "#999",
+                      color: "#000",
                     }}
                   >
-                    Note
+                    ×{s.repeat}
                   </span>
-                  {s.notes}
-                </p>
-              )}
-            </section>
-          );
-        })}
-      </div>
+                )}
+              </div>
+              <span
+                style={{
+                  fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                  fontSize: 9,
+                  color: "#000",
+                }}
+              >
+                {s.bars} bars
+              </span>
+            </div>
 
-      <footer
-        style={{
-          marginTop: 24,
-          paddingTop: 10,
-          borderTop: "1px solid #e5e5e5",
-          fontSize: 9,
-          color: "#999",
-          fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-          letterSpacing: "0.1em",
-          textTransform: "uppercase",
-          textAlign: "center",
-        }}
-      >
-        Blekker · {song.artist} — {song.title} · {displayKey}
-      </footer>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: `repeat(${Math.min(s.chords.length, 4)}, 1fr)`,
+                gap: 4,
+              }}
+            >
+              {s.chords.map((c, i) => {
+                const isRest = c === "%" || c === "-";
+                return (
+                  <div
+                    key={i}
+                    style={{
+                      border: "1px solid #000",
+                      borderRadius: 3,
+                      padding: "5px 4px",
+                      textAlign: "center",
+                      fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                      fontWeight: 600,
+                      fontSize: 12,
+                      color: isRest ? "#666" : "#000",
+                      background: "#fff",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {transposeChord(c, semitones)}
+                  </div>
+                );
+              })}
+            </div>
+
+            {showLyrics && s.lyrics && (
+              <p
+                style={{
+                  marginTop: 6,
+                  marginBottom: 0,
+                  whiteSpace: "pre-line",
+                  fontSize: 10,
+                  color: "#000",
+                  lineHeight: 1.35,
+                }}
+              >
+                {s.lyrics}
+              </p>
+            )}
+
+            {s.notes && (
+              <p
+                style={{
+                  marginTop: 5,
+                  marginBottom: 0,
+                  fontSize: 9,
+                  fontStyle: "italic",
+                  color: "#000",
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                    fontStyle: "normal",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.12em",
+                    fontSize: 8,
+                    marginRight: 5,
+                  }}
+                >
+                  Note
+                </span>
+                {s.notes}
+              </p>
+            )}
+          </section>
+        ))}
+      </div>
     </div>
   );
 }
@@ -302,12 +248,8 @@ export function PrintableChart({ song, semitones, showLyrics }: Props) {
 function Meta({ label, value }: { label: string; value: string }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.1 }}>
-      <span style={{ fontSize: 8, color: "#999", letterSpacing: "0.2em" }}>
-        {label}
-      </span>
-      <span style={{ marginTop: 2, fontWeight: 600, fontSize: 12 }}>
-        {value}
-      </span>
+      <span style={{ fontSize: 7, color: "#000", letterSpacing: "0.2em" }}>{label}</span>
+      <span style={{ marginTop: 1, fontWeight: 700, fontSize: 11 }}>{value}</span>
     </div>
   );
 }
