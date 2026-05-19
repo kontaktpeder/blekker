@@ -66,6 +66,18 @@ export async function exportChartPdf({
         useCORS: true,
         backgroundColor: "#ffffff",
         windowWidth: 794,
+        onclone: (clonedDocument: Document) => {
+          // html2canvas cannot parse the app theme's oklch() CSS tokens.
+          // The printable chart is fully inline-styled, so strip app styles
+          // from the cloned document before html2canvas computes colors.
+          clonedDocument
+            .querySelectorAll('style, link[rel="stylesheet"]')
+            .forEach((node) => node.remove());
+
+          clonedDocument.documentElement.style.background = "#ffffff";
+          clonedDocument.body.style.background = "#ffffff";
+          clonedDocument.body.style.color = "#000000";
+        },
       },
       jsPDF: { unit: "mm", format: "a4", orientation },
       pagebreak: { mode: ["css", "avoid-all"] },
