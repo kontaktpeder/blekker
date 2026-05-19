@@ -45,9 +45,7 @@ export async function exportChartPdf({
 
   try {
     await new Promise<void>((resolve) => {
-      root.render(
-        createElement(PrintableChart, { song, semitones, showLyrics }),
-      );
+      root.render(createElement(PrintableChart, { song, semitones, showLyrics }));
       // Give layout/fonts a tick to settle.
       requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
     });
