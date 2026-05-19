@@ -20,8 +20,7 @@ function slugify(s: string): string {
 }
 
 export function buildFilename(song: Song, semitones: number): string {
-  const key = transposeKey(song.key, semitones);
-  const parts = [song.artist, song.title, key].filter(Boolean).map(slugify);
+  const parts = [song.title, song.artist].filter(Boolean).map(slugify);
   return `${parts.join("-")}.pdf`;
 }
 
