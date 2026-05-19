@@ -7,9 +7,10 @@ interface Props {
 }
 
 /**
- * Print-friendly A4 layout. Pure inline styles, black & white only.
+ * Print-friendly A4 layout. Pure black & white, no card chrome.
+ * Fills the page edge-to-edge, large legible typography, scannable rows.
  * Each section is tagged with data-pdf-section so the exporter can paginate
- * cleanly without splitting sections across pages.
+ * without splitting sections.
  */
 export function PrintableChart({ song, semitones, showLyrics }: Props) {
   const displayKey = transposeKey(song.key, semitones);
@@ -19,125 +20,126 @@ export function PrintableChart({ song, semitones, showLyrics }: Props) {
       className="printable-chart"
       style={{
         width: "794px",
-        padding: "28px 32px",
+        padding: "36px 40px",
         background: "#ffffff",
         color: "#000000",
         fontFamily:
           "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
-        fontSize: "11px",
-        lineHeight: 1.35,
+        fontSize: "14px",
+        lineHeight: 1.4,
         boxSizing: "border-box",
       }}
     >
+      {/* HEADER */}
       <header
         data-pdf-section
         style={{
-          borderBottom: "1.5px solid #000",
-          paddingBottom: 8,
-          marginBottom: 10,
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-end",
-          gap: 20,
+          borderBottom: "2px solid #000",
+          paddingBottom: 14,
+          marginBottom: 18,
         }}
       >
-        <div style={{ minWidth: 0 }}>
-          <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, letterSpacing: "-0.01em" }}>
-            {song.title}
-          </h1>
-          <p
-            style={{
-              margin: "2px 0 0",
-              fontSize: 10,
-              letterSpacing: "0.16em",
-              textTransform: "uppercase",
-              color: "#000",
-            }}
-          >
-            {song.artist}
-          </p>
-        </div>
         <div
           style={{
-            fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-            fontSize: 10,
             display: "flex",
-            gap: 14,
-            whiteSpace: "nowrap",
+            justifyContent: "space-between",
+            alignItems: "flex-end",
+            gap: 24,
           }}
         >
-          <Meta label="KEY" value={displayKey} />
-          <Meta label="BPM" value={String(song.bpm)} />
-          <Meta label="CAPO" value={song.capo ? String(song.capo) : "—"} />
-          {song.timeSig && <Meta label="TIME" value={song.timeSig} />}
-        </div>
-      </header>
-
-      {song.form.length > 0 && (
-        <section data-pdf-section style={{ marginBottom: 10 }}>
-          <p
+          <div style={{ minWidth: 0 }}>
+            <h1
+              style={{
+                fontSize: 34,
+                fontWeight: 800,
+                margin: 0,
+                letterSpacing: "-0.02em",
+                lineHeight: 1.05,
+              }}
+            >
+              {song.title}
+            </h1>
+            <p
+              style={{
+                margin: "6px 0 0",
+                fontSize: 14,
+                letterSpacing: "0.22em",
+                textTransform: "uppercase",
+                fontWeight: 600,
+              }}
+            >
+              {song.artist}
+            </p>
+          </div>
+          <div
             style={{
-              fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-              fontSize: 8,
-              letterSpacing: "0.2em",
-              textTransform: "uppercase",
-              color: "#000",
-              margin: "0 0 4px",
+              display: "flex",
+              gap: 22,
+              whiteSpace: "nowrap",
             }}
           >
-            Form
-          </p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+            <Meta label="KEY" value={displayKey} />
+            <Meta label="BPM" value={String(song.bpm)} />
+            <Meta label="CAPO" value={song.capo ? String(song.capo) : "—"} />
+            {song.timeSig && <Meta label="TIME" value={song.timeSig} />}
+          </div>
+        </div>
+
+        {song.form.length > 0 && (
+          <div
+            style={{
+              marginTop: 14,
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              gap: 8,
+              fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+              fontSize: 13,
+              textTransform: "uppercase",
+              letterSpacing: "0.1em",
+            }}
+          >
+            <span style={{ fontSize: 11, opacity: 0.7 }}>FORM</span>
             {song.form.map((f, i) => (
-              <span
-                key={i}
-                style={{
-                  border: "1px solid #000",
-                  borderRadius: 3,
-                  padding: "2px 6px",
-                  fontSize: 9,
-                  fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.08em",
-                }}
-              >
-                {f}
+              <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontWeight: 700 }}>{f}</span>
+                {i < song.form.length - 1 && <span style={{ opacity: 0.5 }}>›</span>}
               </span>
             ))}
           </div>
-        </section>
-      )}
+        )}
+      </header>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {song.sections.map((s) => (
+      {/* SECTIONS — flat rows, no cards */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {song.sections.map((s, idx) => (
           <section
             key={s.id}
             data-pdf-section
             style={{
-              border: "1px solid #000",
-              borderRadius: 4,
-              padding: "8px 10px",
-              background: "#fff",
+              paddingBottom: 12,
+              borderBottom:
+                idx < song.sections.length - 1 ? "1px solid #000" : "none",
             }}
           >
+            {/* Section header row */}
             <div
               style={{
                 display: "flex",
                 alignItems: "baseline",
                 justifyContent: "space-between",
-                gap: 10,
-                marginBottom: 6,
+                gap: 12,
+                marginBottom: 8,
               }}
             >
-              <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
                 <h2
                   style={{
                     margin: 0,
-                    fontSize: 12,
-                    fontWeight: 700,
+                    fontSize: 20,
+                    fontWeight: 800,
                     textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                    color: "#000",
+                    letterSpacing: "0.06em",
                   }}
                 >
                   {s.name}
@@ -146,8 +148,8 @@ export function PrintableChart({ song, semitones, showLyrics }: Props) {
                   <span
                     style={{
                       fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-                      fontSize: 9,
-                      color: "#000",
+                      fontSize: 15,
+                      fontWeight: 700,
                     }}
                   >
                     ×{s.repeat}
@@ -157,39 +159,52 @@ export function PrintableChart({ song, semitones, showLyrics }: Props) {
               <span
                 style={{
                   fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-                  fontSize: 9,
-                  color: "#000",
+                  fontSize: 12,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.14em",
                 }}
               >
-                {s.bars} bars
+                {s.bars} BARS
               </span>
             </div>
 
+            {/* Chords — big and scannable, full-width grid */}
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: `repeat(${Math.min(s.chords.length, 4)}, 1fr)`,
-                gap: 4,
+                gridTemplateColumns: `repeat(${Math.min(
+                  Math.max(s.chords.length, 1),
+                  4,
+                )}, 1fr)`,
+                gap: 0,
+                border: "1.5px solid #000",
               }}
             >
               {s.chords.map((c, i) => {
                 const isRest = c === "%" || c === "-";
+                const col = i % 4;
+                const row = Math.floor(i / 4);
+                const totalRows = Math.ceil(s.chords.length / Math.min(s.chords.length, 4));
                 return (
                   <div
                     key={i}
                     style={{
-                      border: "1px solid #000",
-                      borderRadius: 3,
-                      padding: "5px 4px",
+                      borderRight: col < 3 && i < s.chords.length - 1 ? "1px solid #000" : "none",
+                      borderTop: row > 0 ? "1px solid #000" : "none",
+                      padding: "14px 8px",
                       textAlign: "center",
                       fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-                      fontWeight: 600,
-                      fontSize: 12,
-                      color: isRest ? "#666" : "#000",
-                      background: "#fff",
+                      fontWeight: 700,
+                      fontSize: 22,
+                      color: isRest ? "#555" : "#000",
                       whiteSpace: "nowrap",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
+                      lineHeight: 1,
+                      // ensure last row cells without right border don't look broken
+                      ...(totalRows > 1 && row === totalRows - 1 && col === (s.chords.length - 1) % 4
+                        ? {}
+                        : {}),
                     }}
                   >
                     {transposeChord(c, semitones)}
@@ -201,12 +216,11 @@ export function PrintableChart({ song, semitones, showLyrics }: Props) {
             {showLyrics && s.lyrics && (
               <p
                 style={{
-                  marginTop: 6,
+                  marginTop: 10,
                   marginBottom: 0,
                   whiteSpace: "pre-line",
-                  fontSize: 10,
-                  color: "#000",
-                  lineHeight: 1.35,
+                  fontSize: 14,
+                  lineHeight: 1.45,
                 }}
               >
                 {s.lyrics}
@@ -216,11 +230,10 @@ export function PrintableChart({ song, semitones, showLyrics }: Props) {
             {s.notes && (
               <p
                 style={{
-                  marginTop: 5,
+                  marginTop: 8,
                   marginBottom: 0,
-                  fontSize: 9,
+                  fontSize: 13,
                   fontStyle: "italic",
-                  color: "#000",
                 }}
               >
                 <span
@@ -228,12 +241,13 @@ export function PrintableChart({ song, semitones, showLyrics }: Props) {
                     fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
                     fontStyle: "normal",
                     textTransform: "uppercase",
-                    letterSpacing: "0.12em",
-                    fontSize: 8,
-                    marginRight: 5,
+                    letterSpacing: "0.16em",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    marginRight: 8,
                   }}
                 >
-                  Note
+                  NOTE
                 </span>
                 {s.notes}
               </p>
@@ -247,9 +261,26 @@ export function PrintableChart({ song, semitones, showLyrics }: Props) {
 
 function Meta({ label, value }: { label: string; value: string }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.1 }}>
-      <span style={{ fontSize: 7, color: "#000", letterSpacing: "0.2em" }}>{label}</span>
-      <span style={{ marginTop: 1, fontWeight: 700, fontSize: 11 }}>{value}</span>
+    <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.05 }}>
+      <span
+        style={{
+          fontSize: 10,
+          letterSpacing: "0.22em",
+          fontWeight: 600,
+        }}
+      >
+        {label}
+      </span>
+      <span
+        style={{
+          marginTop: 3,
+          fontWeight: 800,
+          fontSize: 20,
+          fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+        }}
+      >
+        {value}
+      </span>
     </div>
   );
 }
