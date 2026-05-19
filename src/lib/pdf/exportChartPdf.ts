@@ -69,9 +69,10 @@ export async function exportChartPdf({
       },
       jsPDF: { unit: "mm", format: "a4", orientation },
       pagebreak: { mode: ["css", "avoid-all"] },
-    } as unknown as Parameters<ReturnType<typeof html2pdf>["set"]>[0];
+    };
 
-    await html2pdf().from(target).set(opts).save();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (html2pdf() as any).from(target).set(opts).save();
   } finally {
     // Defer unmount to next tick to avoid React warning.
     setTimeout(() => {
