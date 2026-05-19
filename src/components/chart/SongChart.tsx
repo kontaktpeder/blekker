@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Minus, Plus, Eye, EyeOff, Maximize2, X, Play, Pause } from "lucide-react";
+import { Minus, Plus, Eye, EyeOff, Maximize2, X, Play, Pause, Download } from "lucide-react";
 import { transposeKey, type Song } from "@/lib/music";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { SectionCard } from "./SectionCard";
 import { FormStrip } from "./FormStrip";
+import { exportChartPdf } from "@/lib/pdf/exportChartPdf";
+import { toast } from "sonner";
 
 
 type ViewMode = "full" | "chart" | "form" | "live";
@@ -25,6 +27,7 @@ export function SongChart({ song }: Props) {
   const [semitones, setSemitones] = useState(0);
   const [showLyrics, setShowLyrics] = useState(true);
   const [scrollSpeed, setScrollSpeed] = useState(0); // 0=off, 1=slow, 2=med, 3=fast
+  const [exporting, setExporting] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const displayKey = useMemo(() => transposeKey(song.key, semitones), [song.key, semitones]);
@@ -58,7 +61,20 @@ export function SongChart({ song }: Props) {
   useEffect(() => {
     if (!isLive) setScrollSpeed(0);
   }, [isLive]);
-
+  async function handleExport() {
+    if (exporting) return;
+    setExporting(true);
+    const t = toast.loading("Lager PDF…");
+    try {
+      await exportChartPdf({ song, semitones, showLyrics });
+      toast.success("PDF klar", { id: t });
+    } catch (err) {
+      console.error(err);
+      toast.error("Kunne ikke lage PDF", { id: t });
+    } finally {
+      setExporting(false);
+    }
+  }
 
 
   return (
@@ -141,7 +157,17 @@ export function SongChart({ song }: Props) {
               <span className="ml-2">Lyrics</span>
             </Button>
 
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExport}
+                disabled={exporting}
+                className="font-mono uppercase tracking-wider text-xs"
+              >
+                <Download className="h-4 w-4 mr-1" />
+                {exporting ? "Lager…" : "Last ned PDF"}
+              </Button>
               <Button
                 variant="default"
                 size="sm"
@@ -191,6 +217,15 @@ export function SongChart({ song }: Props) {
             aria-label="Toggle lyrics"
           >
             {showLyrics ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+          </button>
+          <button
+            onClick={handleExport}
+            disabled={exporting}
+            className="p-1.5 hover:bg-accent rounded border-l border-border ml-1 pl-2 disabled:opacity-50"
+            aria-label="Last ned PDF"
+            title="Last ned PDF"
+          >
+            <Download className="h-4 w-4" />
           </button>
           <button
             onClick={() => setMode("full")}
