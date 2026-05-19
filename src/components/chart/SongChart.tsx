@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Minus, Plus, Eye, EyeOff, Maximize2, X, Play, Pause } from "lucide-react";
+import { Minus, Plus, Eye, EyeOff, Maximize2, X, Play, Pause, Download } from "lucide-react";
 import { transposeKey, type Song } from "@/lib/music";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { SectionCard } from "./SectionCard";
 import { FormStrip } from "./FormStrip";
+import { exportChartPdf } from "@/lib/pdf/exportChartPdf";
+import { toast } from "sonner";
 
 
 type ViewMode = "full" | "chart" | "form" | "live";
