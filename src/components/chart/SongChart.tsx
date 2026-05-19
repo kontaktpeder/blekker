@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
-import { Minus, Plus, Eye, EyeOff, Maximize2, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Minus, Plus, Eye, EyeOff, Maximize2, X, Play, Pause } from "lucide-react";
 import { transposeKey, type Song } from "@/lib/music";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { SectionCard } from "./SectionCard";
 import { FormStrip } from "./FormStrip";
+
 
 type ViewMode = "full" | "chart" | "form" | "live";
 
@@ -23,11 +24,39 @@ export function SongChart({ song }: Props) {
   const [mode, setMode] = useState<ViewMode>("full");
   const [semitones, setSemitones] = useState(0);
   const [showLyrics, setShowLyrics] = useState(true);
+  const [scrollSpeed, setScrollSpeed] = useState(0); // 0=off, 1=slow, 2=med, 3=fast
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const displayKey = useMemo(() => transposeKey(song.key, semitones), [song.key, semitones]);
   const isLive = mode === "live";
   const showNotes = mode === "full" || mode === "live";
   const lyricsOn = showLyrics && (mode === "full" || mode === "live");
+
+  // Autoscroll: pixels per second per speed step
+  useEffect(() => {
+    if (!isLive || scrollSpeed === 0) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    const pxPerSec = scrollSpeed * 18; // 18 / 36 / 54
+    let raf = 0;
+    let last = performance.now();
+    const tick = (now: number) => {
+      const dt = (now - last) / 1000;
+      last = now;
+      el.scrollTop += pxPerSec * dt;
+      if (el.scrollTop + el.clientHeight >= el.scrollHeight - 1) return;
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [isLive, scrollSpeed]);
+
+  // Stop autoscroll when leaving live mode
+  useEffect(() => {
+    if (!isLive) setScrollSpeed(0);
+  }, [isLive]);
+
+
 
   return (
     <div className={cn("flex flex-col h-full", isLive && "fixed inset-0 z-50 bg-background")}>
@@ -141,6 +170,18 @@ export function SongChart({ song }: Props) {
               <Plus className="h-4 w-4" />
             </button>
           </div>
+          {/* Autoscroll speed cycle: off → slow → med → fast → off */}
+          <button
+            onClick={() => setScrollSpeed((s) => (s + 1) % 4)}
+            className="flex items-center gap-1 px-2 py-1.5 hover:bg-accent rounded border-l border-border ml-1"
+            aria-label="Autoscroll speed"
+            title="Autoscroll"
+          >
+            {scrollSpeed === 0 ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+            <span className="text-[10px] tracking-[0.15em] w-8 text-center">
+              {scrollSpeed === 0 ? "OFF" : scrollSpeed === 1 ? "SLOW" : scrollSpeed === 2 ? "MED" : "FAST"}
+            </span>
+          </button>
           <button
             onClick={() => setShowLyrics((v) => !v)}
             className="p-1.5 hover:bg-accent rounded border-l border-border ml-1 pl-2"
@@ -160,11 +201,13 @@ export function SongChart({ song }: Props) {
 
       {/* Body */}
       <div
+        ref={scrollRef}
         className={cn(
           "flex-1 overflow-y-auto",
           isLive ? "px-6 md:px-12 py-8" : "px-5 md:px-8 py-6"
         )}
       >
+
         {isLive && (
           <div className="mb-8">
             <h1 className="font-semibold tracking-tight leading-none text-balance text-4xl md:text-6xl">
