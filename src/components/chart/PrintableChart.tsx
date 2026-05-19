@@ -1,4 +1,15 @@
-import { SECTION_COLOR, transposeChord, transposeKey, type Song } from "@/lib/music";
+import { transposeChord, transposeKey, type Song, type SectionType } from "@/lib/music";
+
+// Print-safe hex palette (html2canvas can't parse oklch()).
+const PRINT_SECTION_COLOR: Record<SectionType, string> = {
+  intro: "#6b7280",
+  verse: "#2563eb",
+  chorus: "#dc2626",
+  bridge: "#9333ea",
+  outro: "#0f172a",
+  interlude: "#6b7280",
+  solo: "#9333ea",
+};
 
 interface Props {
   song: Song;
