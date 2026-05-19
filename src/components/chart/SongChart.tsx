@@ -219,6 +219,15 @@ export function SongChart({ song }: Props) {
             {showLyrics ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
           </button>
           <button
+            onClick={handleExport}
+            disabled={exporting}
+            className="p-1.5 hover:bg-accent rounded border-l border-border ml-1 pl-2 disabled:opacity-50"
+            aria-label="Last ned PDF"
+            title="Last ned PDF"
+          >
+            <Download className="h-4 w-4" />
+          </button>
+          <button
             onClick={() => setMode("full")}
             className="p-1.5 hover:bg-accent rounded border-l border-border ml-1 pl-2"
             aria-label="Exit live"
