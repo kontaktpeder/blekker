@@ -14,7 +14,152 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      arrangements: {
+        Row: {
+          band_notes: string | null
+          created_at: string
+          current_key: string | null
+          id: string
+          sections: Json
+          song_id: string
+          structure: Json
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          band_notes?: string | null
+          created_at?: string
+          current_key?: string | null
+          id?: string
+          sections?: Json
+          song_id: string
+          structure?: Json
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          band_notes?: string | null
+          created_at?: string
+          current_key?: string | null
+          id?: string
+          sections?: Json
+          song_id?: string
+          structure?: Json
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "arrangements_song_id_fkey"
+            columns: ["song_id"]
+            isOneToOne: false
+            referencedRelation: "songs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      setlist_songs: {
+        Row: {
+          arrangement_id: string
+          created_at: string
+          id: string
+          position: number
+          setlist_id: string
+        }
+        Insert: {
+          arrangement_id: string
+          created_at?: string
+          id?: string
+          position?: number
+          setlist_id: string
+        }
+        Update: {
+          arrangement_id?: string
+          created_at?: string
+          id?: string
+          position?: number
+          setlist_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "setlist_songs_arrangement_id_fkey"
+            columns: ["arrangement_id"]
+            isOneToOne: false
+            referencedRelation: "arrangements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "setlist_songs_setlist_id_fkey"
+            columns: ["setlist_id"]
+            isOneToOne: false
+            referencedRelation: "setlists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      setlists: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      songs: {
+        Row: {
+          artist: string | null
+          bpm: number | null
+          capo: number | null
+          created_at: string
+          id: string
+          original_key: string | null
+          raw_input: string | null
+          source_url: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          artist?: string | null
+          bpm?: number | null
+          capo?: number | null
+          created_at?: string
+          id?: string
+          original_key?: string | null
+          raw_input?: string | null
+          source_url?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          artist?: string | null
+          bpm?: number | null
+          capo?: number | null
+          created_at?: string
+          id?: string
+          original_key?: string | null
+          raw_input?: string | null
+          source_url?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
