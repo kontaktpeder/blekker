@@ -24,11 +24,39 @@ export function SongChart({ song }: Props) {
   const [mode, setMode] = useState<ViewMode>("full");
   const [semitones, setSemitones] = useState(0);
   const [showLyrics, setShowLyrics] = useState(true);
+  const [scrollSpeed, setScrollSpeed] = useState(0); // 0=off, 1=slow, 2=med, 3=fast
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const displayKey = useMemo(() => transposeKey(song.key, semitones), [song.key, semitones]);
   const isLive = mode === "live";
   const showNotes = mode === "full" || mode === "live";
   const lyricsOn = showLyrics && (mode === "full" || mode === "live");
+
+  // Autoscroll: pixels per second per speed step
+  useEffect(() => {
+    if (!isLive || scrollSpeed === 0) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    const pxPerSec = scrollSpeed * 18; // 18 / 36 / 54
+    let raf = 0;
+    let last = performance.now();
+    const tick = (now: number) => {
+      const dt = (now - last) / 1000;
+      last = now;
+      el.scrollTop += pxPerSec * dt;
+      if (el.scrollTop + el.clientHeight >= el.scrollHeight - 1) return;
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [isLive, scrollSpeed]);
+
+  // Stop autoscroll when leaving live mode
+  useEffect(() => {
+    if (!isLive) setScrollSpeed(0);
+  }, [isLive]);
+
+
 
   return (
     <div className={cn("flex flex-col h-full", isLive && "fixed inset-0 z-50 bg-background")}>
