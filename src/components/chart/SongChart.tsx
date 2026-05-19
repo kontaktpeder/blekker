@@ -157,7 +157,17 @@ export function SongChart({ song }: Props) {
               <span className="ml-2">Lyrics</span>
             </Button>
 
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExport}
+                disabled={exporting}
+                className="font-mono uppercase tracking-wider text-xs"
+              >
+                <Download className="h-4 w-4 mr-1" />
+                {exporting ? "Lager…" : "Last ned PDF"}
+              </Button>
               <Button
                 variant="default"
                 size="sm"
