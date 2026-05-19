@@ -37,7 +37,7 @@ export function SongChart({ song }: Props) {
     if (!isLive || scrollSpeed === 0) return;
     const el = scrollRef.current;
     if (!el) return;
-    const pxPerSec = scrollSpeed * 18; // 18 / 36 / 54
+    const pxPerSec = scrollSpeed === 1 ? 14 : scrollSpeed === 2 ? 40 : 85;
     let raf = 0;
     let last = performance.now();
     const tick = (now: number) => {
