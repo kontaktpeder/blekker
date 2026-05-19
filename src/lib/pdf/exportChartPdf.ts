@@ -89,12 +89,18 @@ export async function exportChartPdf({
       });
     }
 
-    // Try to fit on 2 pages. If natural height exceeds, scale all sections down.
+    // Scale to fill ~2 pages: shrink if too tall, grow if too short.
     const totalHeight =
       rendered.reduce((sum, r) => sum + r.heightMM, 0) +
       GAP_MM * (rendered.length - 1);
-    const twoPageCapacity = CONTENT_H_MM * 2 - GAP_MM * (rendered.length - 1);
-    const shrink = totalHeight > twoPageCapacity ? twoPageCapacity / totalHeight : 1;
+    // Target fill: if content fits on one page, fill ~95% of one page;
+    // otherwise fill ~95% of two pages.
+    const onePageTarget = CONTENT_H_MM * 0.95;
+    const twoPageTarget = CONTENT_H_MM * 2 * 0.95 - GAP_MM * (rendered.length - 1);
+    const targetHeight = totalHeight <= onePageTarget ? onePageTarget : twoPageTarget;
+    const rawScale = targetHeight / totalHeight;
+    // Clamp so we don't blow chords up absurdly or shrink past readability.
+    const shrink = Math.max(0.7, Math.min(1.4, rawScale));
 
     const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
     let y = MARGIN_MM;
