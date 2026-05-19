@@ -207,7 +207,7 @@ export function SongChart({ song }: Props) {
         ref={scrollRef}
         className={cn(
           "flex-1 overflow-y-auto",
-          isLive ? "px-6 md:px-12 py-8" : "px-5 md:px-8 py-6"
+          isLive ? "px-2 md:px-6 py-6" : "px-2 md:px-6 py-6"
         )}
       >
 

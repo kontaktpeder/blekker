@@ -17,7 +17,7 @@ export function SectionCard({ section, semitones, showLyrics, showNotes, mode }:
     <section
       className={cn(
         "relative rounded-xl border bg-card/60 backdrop-blur-sm",
-        liveLg ? "p-8 md:p-12" : "p-5 md:p-7"
+        liveLg ? "p-3 md:p-6" : "p-3 md:p-5"
       )}
     >
       <span
@@ -30,7 +30,7 @@ export function SectionCard({ section, semitones, showLyrics, showNotes, mode }:
           <h3
             className={cn(
               "font-semibold tracking-tight uppercase",
-              liveLg ? "text-3xl md:text-4xl" : "text-lg md:text-xl"
+              liveLg ? "text-2xl md:text-4xl" : "text-lg md:text-xl"
             )}
             style={{ color }}
           >
@@ -53,8 +53,8 @@ export function SectionCard({ section, semitones, showLyrics, showNotes, mode }:
             <div
               key={i}
               className={cn(
-                "flex items-center justify-center rounded-md border border-border/60 bg-background/40 font-mono font-semibold tabular-nums",
-                liveLg ? "h-20 md:h-24 text-3xl md:text-5xl" : "h-12 md:h-14 text-xl md:text-2xl"
+                "flex items-center justify-center rounded-md border border-border/60 bg-background/40 font-mono font-semibold tabular-nums px-1 text-center leading-none break-all",
+                liveLg ? "h-16 md:h-24 text-xl md:text-4xl" : "h-12 md:h-14 text-base md:text-xl"
               )}
               style={{ color: c === "%" || c === "-" ? "var(--muted-foreground)" : "var(--chord)" }}
             >
@@ -63,6 +63,7 @@ export function SectionCard({ section, semitones, showLyrics, showNotes, mode }:
           ))}
         </div>
       </div>
+
 
       {showLyrics && section.lyrics && (
         <p
