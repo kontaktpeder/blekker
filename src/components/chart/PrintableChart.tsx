@@ -130,7 +130,7 @@ export function PrintableChart({ song, semitones, showLyrics }: Props) {
       {/* Sections */}
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {song.sections.map((s) => {
-          const color = SECTION_COLOR[s.type];
+          const color = PRINT_SECTION_COLOR[s.type];
           return (
             <section
               key={s.id}
