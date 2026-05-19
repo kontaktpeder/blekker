@@ -89,42 +89,36 @@ export async function exportChartPdf({
       });
     }
 
-    // Scale to fill ~2 pages: shrink if too tall, grow if too short.
-    const totalHeight =
-      rendered.reduce((sum, r) => sum + r.heightMM, 0) +
-      GAP_MM * (rendered.length - 1);
-    // Target fill: if content fits on one page, fill ~95% of one page;
-    // otherwise fill ~95% of two pages.
-    const onePageTarget = CONTENT_H_MM * 0.95;
-    const twoPageTarget = CONTENT_H_MM * 2 * 0.95 - GAP_MM * (rendered.length - 1);
-    const targetHeight = totalHeight <= onePageTarget ? onePageTarget : twoPageTarget;
-    const rawScale = targetHeight / totalHeight;
-    // Clamp so we don't blow chords up absurdly or shrink past readability.
-    const shrink = Math.max(0.7, Math.min(1.4, rawScale));
+    // Pack sections into pages (max 2 pages target, overflow allowed).
+    const MAX_PAGES = 2;
+    const pages: { dataUrl: string; heightMM: number }[][] = [[]];
+    let pageH = 0;
+    for (const r of rendered) {
+      const projected = pageH + (pages[pages.length - 1].length > 0 ? GAP_MM : 0) + r.heightMM;
+      if (projected > CONTENT_H_MM && pages[pages.length - 1].length > 0 && pages.length < MAX_PAGES) {
+        pages.push([r]);
+        pageH = r.heightMM;
+      } else {
+        pages[pages.length - 1].push(r);
+        pageH = projected;
+      }
+    }
 
     const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
-    let y = MARGIN_MM;
-    let pageIdx = 0;
 
-    for (const r of rendered) {
-      const h = r.heightMM * shrink;
-      const w = CONTENT_W_MM * shrink;
-      // If this section doesn't fit in remaining space, new page.
-      if (y + h > A4_H_MM - MARGIN_MM && y > MARGIN_MM) {
-        if (pageIdx < 1) {
-          pdf.addPage();
-          pageIdx++;
-          y = MARGIN_MM;
-        } else {
-          // Already on last allowed page — keep going but allow overflow page.
-          pdf.addPage();
-          pageIdx++;
-          y = MARGIN_MM;
-        }
+    pages.forEach((sections, pageIdx) => {
+      if (pageIdx > 0) pdf.addPage();
+      const totalSecH = sections.reduce((s, x) => s + x.heightMM, 0);
+      const gaps = sections.length - 1;
+      // Distribute remaining vertical space as larger gaps to fill the page.
+      const remaining = CONTENT_H_MM - totalSecH;
+      const gap = gaps > 0 ? Math.max(GAP_MM, Math.min(remaining / gaps, 40)) : 0;
+      let y = MARGIN_MM;
+      for (const r of sections) {
+        pdf.addImage(r.dataUrl, "JPEG", MARGIN_MM, y, CONTENT_W_MM, r.heightMM);
+        y += r.heightMM + gap;
       }
-      pdf.addImage(r.dataUrl, "JPEG", MARGIN_MM, y, w, h);
-      y += h + GAP_MM;
-    }
+    });
 
     pdf.save(buildFilename(song, semitones));
   } finally {
