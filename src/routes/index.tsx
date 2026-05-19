@@ -1,8 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { SONGS } from "@/lib/songs";
-import { SongChart } from "@/components/chart/SongChart";
-import { SetlistSidebar } from "@/components/chart/SetlistSidebar";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { ListMusic, Music2, Sparkles } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -11,49 +8,87 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "A professional digital music stand for bands. Standardized song charts, transpose, and live performance mode.",
+          "A professional digital music stand. Paste a URL or chords, get a standardized chart, play live.",
       },
     ],
   }),
-  component: Index,
+  component: Landing,
 });
 
-function Index() {
-  const [selectedId, setSelectedId] = useState(SONGS[0].id);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const song = SONGS.find((s) => s.id === selectedId) ?? SONGS[0];
-
+function Landing() {
   return (
-    <div className="dark flex h-screen w-full overflow-hidden bg-background text-foreground">
-      <SetlistSidebar
-        songs={SONGS}
-        selectedId={selectedId}
-        onSelect={(id) => {
-          setSelectedId(id);
-          setSidebarOpen(false);
-        }}
-        open={sidebarOpen}
-        onToggle={() => setSidebarOpen((v) => !v)}
-      />
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
+      <header className="px-6 md:px-12 pt-10 md:pt-16 pb-6">
+        <p className="font-mono uppercase tracking-[0.3em] text-xs text-muted-foreground">
+          Stagechart
+        </p>
+        <h1 className="mt-3 text-4xl md:text-6xl font-semibold tracking-tight text-balance max-w-3xl">
+          One chart language for every song on stage.
+        </h1>
+        <p className="mt-4 text-muted-foreground max-w-xl md:text-lg">
+          Paste any lyrics or chord sheet. Get a clean, transposable,
+          performance-ready chart you and the band can actually read.
+        </p>
+      </header>
 
-      <main className="flex-1 min-w-0 flex flex-col">
-        {/* Mobile top bar with menu */}
-        <div className="lg:hidden flex items-center h-12 px-3 border-b border-border bg-background/80 backdrop-blur">
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="font-mono uppercase tracking-[0.18em] text-xs text-muted-foreground hover:text-foreground"
-          >
-            ☰ Setlist
-          </button>
-          <span className="ml-auto font-mono text-xs text-muted-foreground tabular-nums">
-            {SONGS.findIndex((s) => s.id === selectedId) + 1} / {SONGS.length}
-          </span>
-        </div>
-
-        <div className="flex-1 min-h-0">
-          <SongChart key={song.id} song={song} />
-        </div>
+      <main className="px-6 md:px-12 pb-12 grid gap-4 md:grid-cols-3 max-w-6xl">
+        <Tile
+          to="/songs/new"
+          label="New chart"
+          desc="Drop a URL or chord sheet, AI builds the blekke."
+          icon={<Sparkles className="h-5 w-5" />}
+          accent
+        />
+        <Tile
+          to="/songs"
+          label="Song library"
+          desc="Every saved chart, ready for the music stand."
+          icon={<Music2 className="h-5 w-5" />}
+        />
+        <Tile
+          to="/setlists"
+          label="Setlists"
+          desc="Build a night's set, open straight into Live mode."
+          icon={<ListMusic className="h-5 w-5" />}
+        />
       </main>
     </div>
+  );
+}
+
+function Tile({
+  to,
+  label,
+  desc,
+  icon,
+  accent,
+}: {
+  to: string;
+  label: string;
+  desc: string;
+  icon: React.ReactNode;
+  accent?: boolean;
+}) {
+  return (
+    <Link
+      to={to}
+      className={
+        "group rounded-xl border p-6 transition-colors flex flex-col gap-3 " +
+        (accent
+          ? "border-primary/40 bg-primary/5 hover:bg-primary/10"
+          : "border-border bg-card/40 hover:bg-card")
+      }
+    >
+      <div className={"inline-flex h-10 w-10 items-center justify-center rounded-md " + (accent ? "bg-primary text-primary-foreground" : "bg-accent text-foreground")}>
+        {icon}
+      </div>
+      <div>
+        <p className="font-semibold text-lg">{label}</p>
+        <p className="text-sm text-muted-foreground mt-1">{desc}</p>
+      </div>
+      <span className="mt-auto font-mono text-xs uppercase tracking-[0.18em] text-muted-foreground group-hover:text-foreground">
+        Open →
+      </span>
+    </Link>
   );
 }
