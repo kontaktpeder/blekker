@@ -288,6 +288,12 @@ export function SongChart({ song }: Props) {
           </div>
         )}
       </div>
+      <ExportDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        onConfirm={runExport}
+        busy={exporting}
+      />
     </div>
   );
 }
