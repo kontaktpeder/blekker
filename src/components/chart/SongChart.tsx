@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
 import { SectionCard } from "./SectionCard";
 import { FormStrip } from "./FormStrip";
 import { exportChartPdf } from "@/lib/pdf/exportChartPdf";
+import { ExportDialog } from "./ExportDialog";
+import type { ExportFormat, ExportLayout } from "@/lib/pdf/layouts";
 import { toast } from "sonner";
 
 
@@ -28,6 +30,7 @@ export function SongChart({ song }: Props) {
   const [showLyrics, setShowLyrics] = useState(true);
   const [scrollSpeed, setScrollSpeed] = useState(0); // 0=off, 1=slow, 2=med, 3=fast
   const [exporting, setExporting] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const displayKey = useMemo(() => transposeKey(song.key, semitones), [song.key, semitones]);
@@ -61,16 +64,17 @@ export function SongChart({ song }: Props) {
   useEffect(() => {
     if (!isLive) setScrollSpeed(0);
   }, [isLive]);
-  async function handleExport() {
+  async function runExport(opts: { format: ExportFormat; layout: ExportLayout }) {
     if (exporting) return;
     setExporting(true);
-    const t = toast.loading("Lager PDF…");
+    const t = toast.loading(opts.format === "pdf" ? "Lager PDF…" : "Lager ark…");
     try {
-      await exportChartPdf({ song, semitones, showLyrics });
-      toast.success("PDF klar", { id: t });
+      await exportChartPdf({ song, semitones, showLyrics, ...opts });
+      toast.success(opts.format === "pdf" ? "PDF klar" : "Ark klare", { id: t });
+      setExportOpen(false);
     } catch (err) {
       console.error(err);
-      toast.error("Kunne ikke lage PDF", { id: t });
+      toast.error("Kunne ikke eksportere", { id: t });
     } finally {
       setExporting(false);
     }
@@ -161,7 +165,7 @@ export function SongChart({ song }: Props) {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleExport}
+                onClick={() => setExportOpen(true)}
                 disabled={exporting}
                 className="font-mono uppercase tracking-wider text-xs"
               >
@@ -219,7 +223,7 @@ export function SongChart({ song }: Props) {
             {showLyrics ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
           </button>
           <button
-            onClick={handleExport}
+            onClick={() => setExportOpen(true)}
             disabled={exporting}
             className="p-1.5 hover:bg-accent rounded border-l border-border ml-1 pl-2 disabled:opacity-50"
             aria-label="Last ned PDF"
@@ -284,6 +288,12 @@ export function SongChart({ song }: Props) {
           </div>
         )}
       </div>
+      <ExportDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        onConfirm={runExport}
+        busy={exporting}
+      />
     </div>
   );
 }
