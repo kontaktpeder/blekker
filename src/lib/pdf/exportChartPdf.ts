@@ -1,12 +1,14 @@
 import { createRoot } from "react-dom/client";
 import { createElement } from "react";
-import { PrintableChart } from "@/components/chart/PrintableChart";
-import { transposeKey, type Song } from "@/lib/music";
+import { type Song } from "@/lib/music";
+import { LAYOUTS, type ExportLayout, type ExportFormat } from "./layouts";
 
 interface ExportOptions {
   song: Song;
   semitones: number;
   showLyrics: boolean;
+  layout?: ExportLayout;
+  format?: ExportFormat;
 }
 
 function slugify(s: string): string {
@@ -19,9 +21,15 @@ function slugify(s: string): string {
     .slice(0, 80);
 }
 
-export function buildFilename(song: Song, semitones: number): string {
+export function buildFilename(
+  song: Song,
+  layout: ExportLayout,
+  ext: string,
+): string {
   const parts = [song.title, song.artist].filter(Boolean).map(slugify);
-  return `${parts.join("-")}.pdf`;
+  const base = parts.join("-") || "chart";
+  const suffix = layout === "lead-sheet" ? "-leadsheet" : "";
+  return `${base}${suffix}.${ext}`;
 }
 
 const A4_W_MM = 210;
@@ -31,11 +39,20 @@ const CONTENT_W_MM = A4_W_MM - MARGIN_MM * 2;
 const CONTENT_H_MM = A4_H_MM - MARGIN_MM * 2;
 const GAP_MM = 3;
 
+/**
+ * Renders the chosen layout off-screen, snapshots each section with
+ * html2canvas, and emits the requested file format. Layout is a
+ * presentation choice — data and pagination logic stay the same.
+ */
 export async function exportChartPdf({
   song,
   semitones,
   showLyrics,
+  layout = "blekker",
+  format = "pdf",
 }: ExportOptions): Promise<void> {
+  const LayoutComponent = LAYOUTS[layout].Component;
+
   const host = document.createElement("div");
   host.style.position = "fixed";
   host.style.left = "-10000px";
@@ -47,7 +64,7 @@ export async function exportChartPdf({
 
   try {
     await new Promise<void>((resolve) => {
-      root.render(createElement(PrintableChart, { song, semitones, showLyrics }));
+      root.render(createElement(LayoutComponent, { song, semitones, showLyrics }));
       requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
     });
 
@@ -64,7 +81,6 @@ export async function exportChartPdf({
       import("jspdf"),
     ]);
 
-    // Render each section to an image, then paginate (max 2 pages target).
     const rendered: { dataUrl: string; heightMM: number }[] = [];
     for (const el of sections) {
       const canvas = await html2canvas(el, {
@@ -88,7 +104,32 @@ export async function exportChartPdf({
       });
     }
 
-    // Pack sections into pages (max 2 pages target, overflow allowed).
+    if (format === "sheet") {
+      // Per-Sheet: render each section as its own PNG image download.
+      // Uses full-resolution snapshot rather than the paginated PDF flow.
+      for (let i = 0; i < sections.length; i++) {
+        const canvas = await html2canvas(sections[i], {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: "#ffffff",
+          logging: false,
+        });
+        const url = canvas.toDataURL("image/png");
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = buildFilename(
+          song,
+          layout,
+          `sheet${sections.length > 1 ? `-${i + 1}` : ""}.png`,
+        );
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+      return;
+    }
+
+    // PDF: pack sections into pages (max 2 target, overflow allowed).
     const MAX_PAGES = 2;
     const pages: { dataUrl: string; heightMM: number }[][] = [[]];
     let pageH = 0;
@@ -105,21 +146,20 @@ export async function exportChartPdf({
 
     const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
 
-    pages.forEach((sections, pageIdx) => {
+    pages.forEach((pageSections, pageIdx) => {
       if (pageIdx > 0) pdf.addPage();
-      const totalSecH = sections.reduce((s, x) => s + x.heightMM, 0);
-      const gaps = sections.length - 1;
-      // Distribute remaining vertical space as larger gaps to fill the page.
+      const totalSecH = pageSections.reduce((s, x) => s + x.heightMM, 0);
+      const gaps = pageSections.length - 1;
       const remaining = CONTENT_H_MM - totalSecH;
       const gap = gaps > 0 ? Math.max(GAP_MM, Math.min(remaining / gaps, 40)) : 0;
       let y = MARGIN_MM;
-      for (const r of sections) {
+      for (const r of pageSections) {
         pdf.addImage(r.dataUrl, "JPEG", MARGIN_MM, y, CONTENT_W_MM, r.heightMM);
         y += r.heightMM + gap;
       }
     });
 
-    pdf.save(buildFilename(song, semitones));
+    pdf.save(buildFilename(song, layout, "pdf"));
   } finally {
     setTimeout(() => {
       root.unmount();
