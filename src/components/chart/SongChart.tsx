@@ -30,6 +30,7 @@ export function SongChart({ song }: Props) {
   const [showLyrics, setShowLyrics] = useState(true);
   const [scrollSpeed, setScrollSpeed] = useState(0); // 0=off, 1=slow, 2=med, 3=fast
   const [exporting, setExporting] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const displayKey = useMemo(() => transposeKey(song.key, semitones), [song.key, semitones]);
