@@ -64,16 +64,17 @@ export function SongChart({ song }: Props) {
   useEffect(() => {
     if (!isLive) setScrollSpeed(0);
   }, [isLive]);
-  async function handleExport() {
+  async function runExport(opts: { format: ExportFormat; layout: ExportLayout }) {
     if (exporting) return;
     setExporting(true);
-    const t = toast.loading("Lager PDF…");
+    const t = toast.loading(opts.format === "pdf" ? "Lager PDF…" : "Lager ark…");
     try {
-      await exportChartPdf({ song, semitones, showLyrics });
-      toast.success("PDF klar", { id: t });
+      await exportChartPdf({ song, semitones, showLyrics, ...opts });
+      toast.success(opts.format === "pdf" ? "PDF klar" : "Ark klare", { id: t });
+      setExportOpen(false);
     } catch (err) {
       console.error(err);
-      toast.error("Kunne ikke lage PDF", { id: t });
+      toast.error("Kunne ikke eksportere", { id: t });
     } finally {
       setExporting(false);
     }
