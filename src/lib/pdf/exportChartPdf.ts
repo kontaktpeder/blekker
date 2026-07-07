@@ -71,6 +71,24 @@ export async function exportChartPdf({
     const container = host.firstElementChild as HTMLElement | null;
     if (!container) throw new Error("Failed to render printable chart");
 
+    // html2canvas walks SVG element styles and dies on Tailwind v4's `lab()`
+    // colors. Rasterize every <svg> to a data-URL <img> in the SOURCE tree
+    // BEFORE html2canvas touches it (onclone runs too late for SVG parsing).
+    container.querySelectorAll("svg").forEach((svg) => {
+      const rect = svg.getBoundingClientRect();
+      const svgClone = svg.cloneNode(true) as SVGElement;
+      if (!svgClone.getAttribute("xmlns"))
+        svgClone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+      const xml = new XMLSerializer().serializeToString(svgClone);
+      const b64 = btoa(unescape(encodeURIComponent(xml)));
+      const img = document.createElement("img");
+      img.src = `data:image/svg+xml;base64,${b64}`;
+      img.style.display = "block";
+      img.style.width = `${rect.width || 700}px`;
+      img.style.height = `${rect.height || 44}px`;
+      svg.parentNode?.replaceChild(img, svg);
+    });
+
     const sections = Array.from(
       container.querySelectorAll<HTMLElement>("[data-pdf-section]"),
     );
@@ -81,6 +99,15 @@ export async function exportChartPdf({
       import("jspdf"),
     ]);
 
+    const cloneOptions = {
+      onclone: (doc: Document) => {
+        doc.querySelectorAll('style, link[rel="stylesheet"]').forEach((n) => n.remove());
+        doc.documentElement.style.background = "#ffffff";
+        doc.body.style.background = "#ffffff";
+        doc.body.style.color = "#000000";
+      },
+    };
+
     const rendered: { dataUrl: string; heightMM: number }[] = [];
     for (const el of sections) {
       const canvas = await html2canvas(el, {
@@ -88,12 +115,7 @@ export async function exportChartPdf({
         useCORS: true,
         backgroundColor: "#ffffff",
         logging: false,
-        onclone: (doc) => {
-          doc.querySelectorAll('style, link[rel="stylesheet"]').forEach((n) => n.remove());
-          doc.documentElement.style.background = "#ffffff";
-          doc.body.style.background = "#ffffff";
-          doc.body.style.color = "#000000";
-        },
+        ...cloneOptions,
       });
       const pxW = canvas.width / 2;
       const pxH = canvas.height / 2;
@@ -113,6 +135,7 @@ export async function exportChartPdf({
           useCORS: true,
           backgroundColor: "#ffffff",
           logging: false,
+          ...cloneOptions,
         });
         const url = canvas.toDataURL("image/png");
         const a = document.createElement("a");
