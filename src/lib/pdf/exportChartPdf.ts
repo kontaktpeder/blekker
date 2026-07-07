@@ -74,7 +74,9 @@ export async function exportChartPdf({
     // html2canvas walks SVG element styles and dies on Tailwind v4's `lab()`
     // colors. Rasterize every <svg> to a data-URL <img> in the SOURCE tree
     // BEFORE html2canvas touches it (onclone runs too late for SVG parsing).
-    container.querySelectorAll("svg").forEach((svg) => {
+    const svgs = container.querySelectorAll("svg");
+    console.log("[pdf export] rasterizing svgs:", svgs.length, "layout:", layout);
+    svgs.forEach((svg) => {
       const rect = svg.getBoundingClientRect();
       const svgClone = svg.cloneNode(true) as SVGElement;
       if (!svgClone.getAttribute("xmlns"))
@@ -84,8 +86,8 @@ export async function exportChartPdf({
       const img = document.createElement("img");
       img.src = `data:image/svg+xml;base64,${b64}`;
       img.style.display = "block";
-      img.style.width = `${rect.width}px`;
-      img.style.height = `${rect.height}px`;
+      img.style.width = `${rect.width || 700}px`;
+      img.style.height = `${rect.height || 44}px`;
       svg.parentNode?.replaceChild(img, svg);
     });
 
