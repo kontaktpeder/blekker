@@ -138,6 +138,7 @@ export async function exportChartPdf({
           useCORS: true,
           backgroundColor: "#ffffff",
           logging: false,
+          ...cloneOptions,
         });
         const url = canvas.toDataURL("image/png");
         const a = document.createElement("a");
