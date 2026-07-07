@@ -81,6 +81,36 @@ export async function exportChartPdf({
       import("jspdf"),
     ]);
 
+    // html2canvas chokes on Tailwind v4's `lab()` colors when it walks SVG
+    // elements. Pre-rasterize every <svg> to a data-URL <img> in the clone
+    // so html2canvas only sees plain raster images.
+    const rasterizeSvgs = (doc: Document) => {
+      doc.querySelectorAll("svg").forEach((svg) => {
+        const clone = svg.cloneNode(true) as SVGElement;
+        if (!clone.getAttribute("xmlns"))
+          clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+        const xml = new XMLSerializer().serializeToString(clone);
+        const b64 = btoa(unescape(encodeURIComponent(xml)));
+        const img = doc.createElement("img");
+        img.src = `data:image/svg+xml;base64,${b64}`;
+        img.style.display = "block";
+        img.style.width = svg.style.width || svg.getAttribute("width") || "100%";
+        const hAttr = svg.getAttribute("height");
+        if (hAttr) img.style.height = /^\d+$/.test(hAttr) ? `${hAttr}px` : hAttr;
+        svg.parentNode?.replaceChild(img, svg);
+      });
+    };
+
+    const cloneOptions = {
+      onclone: (doc: Document) => {
+        doc.querySelectorAll('style, link[rel="stylesheet"]').forEach((n) => n.remove());
+        doc.documentElement.style.background = "#ffffff";
+        doc.body.style.background = "#ffffff";
+        doc.body.style.color = "#000000";
+        rasterizeSvgs(doc);
+      },
+    };
+
     const rendered: { dataUrl: string; heightMM: number }[] = [];
     for (const el of sections) {
       const canvas = await html2canvas(el, {
@@ -88,12 +118,7 @@ export async function exportChartPdf({
         useCORS: true,
         backgroundColor: "#ffffff",
         logging: false,
-        onclone: (doc) => {
-          doc.querySelectorAll('style, link[rel="stylesheet"]').forEach((n) => n.remove());
-          doc.documentElement.style.background = "#ffffff";
-          doc.body.style.background = "#ffffff";
-          doc.body.style.color = "#000000";
-        },
+        ...cloneOptions,
       });
       const pxW = canvas.width / 2;
       const pxH = canvas.height / 2;
