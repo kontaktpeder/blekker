@@ -107,7 +107,10 @@ export async function exportChartPdf({
         doc.documentElement.style.background = "#ffffff";
         doc.body.style.background = "#ffffff";
         doc.body.style.color = "#000000";
+        const before = doc.querySelectorAll("svg").length;
         rasterizeSvgs(doc);
+        const after = doc.querySelectorAll("svg").length;
+        console.log("[pdf export] rasterized svgs", before, "->", after);
       },
     };
 
