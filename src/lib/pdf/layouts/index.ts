@@ -12,11 +12,29 @@ export const LAYOUTS: Record<ExportLayout, LayoutDefinition> = {
   "lead-sheet": {
     id: "lead-sheet",
     label: "Lead Sheet",
-    description: "Tradisjonell layout for utskrift og band.",
+    description: "Tradisjonelt bandark med notesystem.",
     Component: LeadSheetChart,
+    variants: [
+      {
+        id: "lyric",
+        label: "Lyric / Chord",
+        description: "Én-linje slash-notation med tekst under, seksjonslabels med streker.",
+      },
+      {
+        id: "classic",
+        label: "Classic",
+        description: "5-linjers notesystem, G-nøkkel, toneart, boksede seksjoner.",
+      },
+    ],
   },
 };
 
 export const LAYOUT_ORDER: ExportLayout[] = ["blekker", "lead-sheet"];
 
-export type { ExportLayout, ExportFormat, LayoutDefinition, LayoutProps } from "./types";
+export type {
+  ExportLayout,
+  ExportFormat,
+  LayoutDefinition,
+  LayoutProps,
+  LeadSheetVariant,
+} from "./types";
