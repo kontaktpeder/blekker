@@ -74,9 +74,7 @@ export async function exportChartPdf({
     // html2canvas walks SVG element styles and dies on Tailwind v4's `lab()`
     // colors. Rasterize every <svg> to a data-URL <img> in the SOURCE tree
     // BEFORE html2canvas touches it (onclone runs too late for SVG parsing).
-    const svgs = container.querySelectorAll("svg");
-    console.log("[pdf export] rasterizing svgs:", svgs.length, "layout:", layout);
-    svgs.forEach((svg) => {
+    container.querySelectorAll("svg").forEach((svg) => {
       const rect = svg.getBoundingClientRect();
       const svgClone = svg.cloneNode(true) as SVGElement;
       if (!svgClone.getAttribute("xmlns"))
@@ -101,36 +99,12 @@ export async function exportChartPdf({
       import("jspdf"),
     ]);
 
-    // html2canvas chokes on Tailwind v4's `lab()` colors when it walks SVG
-    // elements. Pre-rasterize every <svg> to a data-URL <img> in the clone
-    // so html2canvas only sees plain raster images.
-    const rasterizeSvgs = (doc: Document) => {
-      doc.querySelectorAll("svg").forEach((svg) => {
-        const clone = svg.cloneNode(true) as SVGElement;
-        if (!clone.getAttribute("xmlns"))
-          clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-        const xml = new XMLSerializer().serializeToString(clone);
-        const b64 = btoa(unescape(encodeURIComponent(xml)));
-        const img = doc.createElement("img");
-        img.src = `data:image/svg+xml;base64,${b64}`;
-        img.style.display = "block";
-        img.style.width = svg.style.width || svg.getAttribute("width") || "100%";
-        const hAttr = svg.getAttribute("height");
-        if (hAttr) img.style.height = /^\d+$/.test(hAttr) ? `${hAttr}px` : hAttr;
-        svg.parentNode?.replaceChild(img, svg);
-      });
-    };
-
     const cloneOptions = {
       onclone: (doc: Document) => {
         doc.querySelectorAll('style, link[rel="stylesheet"]').forEach((n) => n.remove());
         doc.documentElement.style.background = "#ffffff";
         doc.body.style.background = "#ffffff";
         doc.body.style.color = "#000000";
-        const before = doc.querySelectorAll("svg").length;
-        rasterizeSvgs(doc);
-        const after = doc.querySelectorAll("svg").length;
-        console.log("[pdf export] rasterized svgs", before, "->", after);
       },
     };
 
