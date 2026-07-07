@@ -64,7 +64,7 @@ export function SongChart({ song }: Props) {
   useEffect(() => {
     if (!isLive) setScrollSpeed(0);
   }, [isLive]);
-  async function runExport(opts: { format: ExportFormat; layout: ExportLayout }) {
+  async function runExport(opts: { format: ExportFormat; layout: ExportLayout; variant?: LeadSheetVariant }) {
     if (exporting) return;
     setExporting(true);
     const t = toast.loading(opts.format === "pdf" ? "Lager PDF…" : "Lager ark…");
