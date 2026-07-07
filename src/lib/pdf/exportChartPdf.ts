@@ -1,7 +1,12 @@
 import { createRoot } from "react-dom/client";
 import { createElement } from "react";
 import { type Song } from "@/lib/music";
-import { LAYOUTS, type ExportLayout, type ExportFormat } from "./layouts";
+import {
+  LAYOUTS,
+  type ExportLayout,
+  type ExportFormat,
+  type LeadSheetVariant,
+} from "./layouts";
 
 interface ExportOptions {
   song: Song;
@@ -9,6 +14,7 @@ interface ExportOptions {
   showLyrics: boolean;
   layout?: ExportLayout;
   format?: ExportFormat;
+  variant?: LeadSheetVariant;
 }
 
 function slugify(s: string): string {
