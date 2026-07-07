@@ -9,18 +9,31 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { LAYOUTS, LAYOUT_ORDER, type ExportFormat, type ExportLayout } from "@/lib/pdf/layouts";
+import {
+  LAYOUTS,
+  LAYOUT_ORDER,
+  type ExportFormat,
+  type ExportLayout,
+  type LeadSheetVariant,
+} from "@/lib/pdf/layouts";
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onConfirm: (opts: { format: ExportFormat; layout: ExportLayout }) => void;
+  onConfirm: (opts: {
+    format: ExportFormat;
+    layout: ExportLayout;
+    variant?: LeadSheetVariant;
+  }) => void;
   busy?: boolean;
 }
 
 export function ExportDialog({ open, onOpenChange, onConfirm, busy }: Props) {
   const [format, setFormat] = useState<ExportFormat>("pdf");
   const [layout, setLayout] = useState<ExportLayout>("blekker");
+  const [variant, setVariant] = useState<LeadSheetVariant>("lyric");
+
+  const activeVariants = LAYOUTS[layout].variants;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -68,13 +81,45 @@ export function ExportDialog({ open, onOpenChange, onConfirm, busy }: Props) {
               })}
             </RadioGroup>
           </section>
+
+          {activeVariants && (
+            <section className="space-y-3">
+              <p className="font-mono uppercase tracking-[0.18em] text-xs text-muted-foreground">
+                Stil
+              </p>
+              <RadioGroup
+                value={variant}
+                onValueChange={(v) => setVariant(v as LeadSheetVariant)}
+                className="gap-2"
+              >
+                {activeVariants.map((v) => (
+                  <FormatRow
+                    key={v.id}
+                    value={v.id}
+                    label={v.label}
+                    description={v.description}
+                    selected={variant}
+                  />
+                ))}
+              </RadioGroup>
+            </section>
+          )}
         </div>
 
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
             Avbryt
           </Button>
-          <Button onClick={() => onConfirm({ format, layout })} disabled={busy}>
+          <Button
+            onClick={() =>
+              onConfirm({
+                format,
+                layout,
+                variant: activeVariants ? variant : undefined,
+              })
+            }
+            disabled={busy}
+          >
             {busy ? "Lager…" : "Eksporter"}
           </Button>
         </DialogFooter>

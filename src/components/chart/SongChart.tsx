@@ -7,7 +7,7 @@ import { SectionCard } from "./SectionCard";
 import { FormStrip } from "./FormStrip";
 import { exportChartPdf } from "@/lib/pdf/exportChartPdf";
 import { ExportDialog } from "./ExportDialog";
-import type { ExportFormat, ExportLayout } from "@/lib/pdf/layouts";
+import type { ExportFormat, ExportLayout, LeadSheetVariant } from "@/lib/pdf/layouts";
 import { toast } from "sonner";
 
 
@@ -64,7 +64,7 @@ export function SongChart({ song }: Props) {
   useEffect(() => {
     if (!isLive) setScrollSpeed(0);
   }, [isLive]);
-  async function runExport(opts: { format: ExportFormat; layout: ExportLayout }) {
+  async function runExport(opts: { format: ExportFormat; layout: ExportLayout; variant?: LeadSheetVariant }) {
     if (exporting) return;
     setExporting(true);
     const t = toast.loading(opts.format === "pdf" ? "Lager PDF…" : "Lager ark…");

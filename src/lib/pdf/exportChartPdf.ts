@@ -1,7 +1,12 @@
 import { createRoot } from "react-dom/client";
 import { createElement } from "react";
 import { type Song } from "@/lib/music";
-import { LAYOUTS, type ExportLayout, type ExportFormat } from "./layouts";
+import {
+  LAYOUTS,
+  type ExportLayout,
+  type ExportFormat,
+  type LeadSheetVariant,
+} from "./layouts";
 
 interface ExportOptions {
   song: Song;
@@ -9,6 +14,7 @@ interface ExportOptions {
   showLyrics: boolean;
   layout?: ExportLayout;
   format?: ExportFormat;
+  variant?: LeadSheetVariant;
 }
 
 function slugify(s: string): string {
@@ -50,6 +56,7 @@ export async function exportChartPdf({
   showLyrics,
   layout = "blekker",
   format = "pdf",
+  variant,
 }: ExportOptions): Promise<void> {
   const LayoutComponent = LAYOUTS[layout].Component;
 
@@ -64,7 +71,9 @@ export async function exportChartPdf({
 
   try {
     await new Promise<void>((resolve) => {
-      root.render(createElement(LayoutComponent, { song, semitones, showLyrics }));
+      root.render(
+        createElement(LayoutComponent, { song, semitones, showLyrics, variant }),
+      );
       requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
     });
 
