@@ -56,6 +56,7 @@ export async function exportChartPdf({
   showLyrics,
   layout = "blekker",
   format = "pdf",
+  variant,
 }: ExportOptions): Promise<void> {
   const LayoutComponent = LAYOUTS[layout].Component;
 
@@ -70,7 +71,9 @@ export async function exportChartPdf({
 
   try {
     await new Promise<void>((resolve) => {
-      root.render(createElement(LayoutComponent, { song, semitones, showLyrics }));
+      root.render(
+        createElement(LayoutComponent, { song, semitones, showLyrics, variant }),
+      );
       requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
     });
 
