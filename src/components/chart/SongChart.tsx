@@ -7,7 +7,7 @@ import { SectionCard } from "./SectionCard";
 import { FormStrip } from "./FormStrip";
 import { exportChartPdf } from "@/lib/pdf/exportChartPdf";
 import { ExportDialog } from "./ExportDialog";
-import type { ExportFormat, ExportLayout } from "@/lib/pdf/layouts";
+import type { ExportFormat, ExportLayout, LeadSheetVariant } from "@/lib/pdf/layouts";
 import { toast } from "sonner";
 
 
