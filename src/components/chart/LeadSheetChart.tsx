@@ -29,7 +29,7 @@ export function LeadSheetChart({ song, semitones, showLyrics }: Props) {
     const normalized = normalizeSong(song, semitones);
     const systems = layoutScore(normalized, {
       systemContentWidth: systemContentWidth(normalized.header.key),
-      maxMeasuresPerSystem: 6,
+      maxMeasuresPerSystem: 4,
     });
     return { score: normalized, pages: paginate(normalized, systems) };
   }, [song, semitones]);
