@@ -12,20 +12,8 @@ export const LAYOUTS: Record<ExportLayout, LayoutDefinition> = {
   "lead-sheet": {
     id: "lead-sheet",
     label: "Lead Sheet",
-    description: "Tradisjonelt bandark med notesystem.",
+    description: "Engravert bandark – notesystem, akkorder over, tekst under.",
     Component: LeadSheetChart,
-    variants: [
-      {
-        id: "lyric",
-        label: "Lyric / Chord",
-        description: "Én-linje slash-notation med tekst under, seksjonslabels med streker.",
-      },
-      {
-        id: "classic",
-        label: "Classic",
-        description: "5-linjers notesystem, G-nøkkel, toneart, boksede seksjoner.",
-      },
-    ],
   },
 };
 
