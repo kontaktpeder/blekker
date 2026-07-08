@@ -15,6 +15,7 @@ import { Route as SetlistsIndexRouteImport } from './routes/setlists.index'
 import { Route as SongsNewRouteImport } from './routes/songs.new'
 import { Route as SongsIdRouteImport } from './routes/songs.$id'
 import { Route as SetlistsIdRouteImport } from './routes/setlists.$id'
+import { Route as DevLeadsheetRouteImport } from './routes/_dev.leadsheet'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -46,9 +47,15 @@ const SetlistsIdRoute = SetlistsIdRouteImport.update({
   path: '/setlists/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DevLeadsheetRoute = DevLeadsheetRouteImport.update({
+  id: '/_dev/leadsheet',
+  path: '/leadsheet',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/leadsheet': typeof DevLeadsheetRoute
   '/setlists/$id': typeof SetlistsIdRoute
   '/songs/$id': typeof SongsIdRoute
   '/songs/new': typeof SongsNewRoute
@@ -57,6 +64,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/leadsheet': typeof DevLeadsheetRoute
   '/setlists/$id': typeof SetlistsIdRoute
   '/songs/$id': typeof SongsIdRoute
   '/songs/new': typeof SongsNewRoute
@@ -66,6 +74,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_dev/leadsheet': typeof DevLeadsheetRoute
   '/setlists/$id': typeof SetlistsIdRoute
   '/songs/$id': typeof SongsIdRoute
   '/songs/new': typeof SongsNewRoute
@@ -76,6 +85,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/leadsheet'
     | '/setlists/$id'
     | '/songs/$id'
     | '/songs/new'
@@ -84,6 +94,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/leadsheet'
     | '/setlists/$id'
     | '/songs/$id'
     | '/songs/new'
@@ -92,6 +103,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/_dev/leadsheet'
     | '/setlists/$id'
     | '/songs/$id'
     | '/songs/new'
@@ -101,6 +113,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DevLeadsheetRoute: typeof DevLeadsheetRoute
   SetlistsIdRoute: typeof SetlistsIdRoute
   SongsIdRoute: typeof SongsIdRoute
   SongsNewRoute: typeof SongsNewRoute
@@ -152,11 +165,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SetlistsIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_dev/leadsheet': {
+      id: '/_dev/leadsheet'
+      path: '/leadsheet'
+      fullPath: '/leadsheet'
+      preLoaderRoute: typeof DevLeadsheetRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DevLeadsheetRoute: DevLeadsheetRoute,
   SetlistsIdRoute: SetlistsIdRoute,
   SongsIdRoute: SongsIdRoute,
   SongsNewRoute: SongsNewRoute,
@@ -166,3 +187,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
