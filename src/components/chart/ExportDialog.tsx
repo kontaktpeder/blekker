@@ -31,7 +31,7 @@ interface Props {
 export function ExportDialog({ open, onOpenChange, onConfirm, busy }: Props) {
   const [format, setFormat] = useState<ExportFormat>("pdf");
   const [layout, setLayout] = useState<ExportLayout>("blekker");
-  const [variant, setVariant] = useState<LeadSheetVariant>("lyric");
+  const [variant, setVariant] = useState<LeadSheetVariant | undefined>(undefined);
 
   const activeVariants = LAYOUTS[layout].variants;
 
@@ -98,7 +98,7 @@ export function ExportDialog({ open, onOpenChange, onConfirm, busy }: Props) {
                     value={v.id}
                     label={v.label}
                     description={v.description}
-                    selected={variant}
+                    selected={variant ?? ""}
                   />
                 ))}
               </RadioGroup>
