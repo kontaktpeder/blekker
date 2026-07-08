@@ -98,7 +98,7 @@ export function ExportDialog({ open, onOpenChange, onConfirm, busy }: Props) {
                     value={v.id}
                     label={v.label}
                     description={v.description}
-                    selected={variant}
+                    selected={variant ?? ""}
                   />
                 ))}
               </RadioGroup>
