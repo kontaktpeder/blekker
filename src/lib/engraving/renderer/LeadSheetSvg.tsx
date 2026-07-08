@@ -256,7 +256,6 @@ function LyricLine({ system, staffTop, lyrics }: { system: System; staffTop: num
   return (
     <foreignObject x={startX} y={y - 22} width={w} height={80}>
       <div
-        xmlns="http://www.w3.org/1999/xhtml"
         style={{
           fontFamily: SERIF,
           fontStyle: "italic",
