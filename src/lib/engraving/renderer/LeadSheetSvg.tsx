@@ -295,7 +295,7 @@ function SystemBlock({
   const keyX = clefX + CLEF_W;
   const kw = keySigWidth(score.header.key);
   const timeX = keyX + kw;
-  const measuresStartX = timeX + (showTimeSig ? TIMESIG_W : 0);
+  const measuresStartX = timeX + TIMESIG_W; // always reserve, keeps systems aligned
   const measuresWidth = sys.contentWidth;
 
   // Section label + barline start
