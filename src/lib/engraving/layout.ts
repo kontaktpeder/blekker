@@ -106,7 +106,6 @@ export function layoutScore(score: NormalizedScore, opts: LayoutOpts): System[] 
       systems.push(buildSystemFromMeasures(section, slice, s === 0, maxWidth));
     }
   }
-  }
 
   return systems;
 }
