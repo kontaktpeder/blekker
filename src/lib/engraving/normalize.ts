@@ -29,7 +29,10 @@ function normalizeSection(
   isFinal: boolean,
 ): EngravedSection {
   const measures: Measure[] = [];
-  const rawBars = section.chords.length > 0 ? section.chords : new Array(section.bars).fill("-");
+  const rawBars: string[] =
+    section.chords.length > 0
+      ? section.chords
+      : (new Array<string>(section.bars).fill("-"));
 
   rawBars.forEach((raw, idx) => {
     const barNo = startBarNumber + idx;
