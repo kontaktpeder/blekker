@@ -92,27 +92,20 @@ export function layoutScore(score: NormalizedScore, opts: LayoutOpts): System[] 
   const maxWidth = opts.systemContentWidth;
 
   for (const section of score.sections) {
-    let bucket: Measure[] = [];
-    let bucketIntrinsic = 0;
-    let first = true;
-
-    const flush = () => {
-      if (bucket.length === 0) return;
-      systems.push(buildSystemFromMeasures(section, bucket, first, maxWidth));
-      first = false;
-      bucket = [];
-      bucketIntrinsic = 0;
-    };
-
-    for (const m of section.measures) {
-      const w = intrinsicWidth(m);
-      const overflow = bucketIntrinsic + w > maxWidth * 1.05 && bucket.length > 0;
-      const tooMany = bucket.length >= maxPer;
-      if (overflow || tooMany) flush();
-      bucket.push(m);
-      bucketIntrinsic += w;
+    // Balance bars evenly across systems so we never get a 4+1 stranded row.
+    const total = section.measures.length;
+    if (total === 0) continue;
+    const numSystems = Math.max(1, Math.ceil(total / maxPer));
+    const base = Math.floor(total / numSystems);
+    const extra = total % numSystems; // first `extra` systems get one more bar
+    let idx = 0;
+    for (let s = 0; s < numSystems; s++) {
+      const size = base + (s < extra ? 1 : 0);
+      const slice = section.measures.slice(idx, idx + size);
+      idx += size;
+      systems.push(buildSystemFromMeasures(section, slice, s === 0, maxWidth));
     }
-    flush();
+  }
   }
 
   return systems;
