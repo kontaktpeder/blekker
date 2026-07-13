@@ -85,7 +85,7 @@ export async function exportChartPdf({
     // Rasterize every SVG to a PNG data-URL. The PNGs are the source of truth
     // for both the "SVG-per-page" fast path (lead-sheet) AND as replacements
     // for html2canvas so it never has to parse SVG styles.
-    interface Raster { pngUrl: string; vbW: number; vbH: number; boxW: number; boxH: number }
+    interface Raster { pngUrl: string; jpgUrl: string; vbW: number; vbH: number; boxW: number; boxH: number }
     const svgs = Array.from(container.querySelectorAll("svg"));
     const rasters = new Map<Element, Raster>();
     await Promise.all(
@@ -104,10 +104,12 @@ export async function exportChartPdf({
         const xml = new XMLSerializer().serializeToString(svgClone);
         const b64 = btoa(unescape(encodeURIComponent(xml)));
         const svgUrl = `data:image/svg+xml;base64,${b64}`;
-        const pngUrl = await new Promise<string>((resolve, reject) => {
+        const { pngUrl, jpgUrl } = await new Promise<{ pngUrl: string; jpgUrl: string }>((resolve, reject) => {
           const im = new Image();
           im.onload = () => {
-            const scale = 2;
+            // Cap raster at ~2200px wide so PDFs stay under a few MB.
+            const targetW = Math.min(2200, vbW * 1.5);
+            const scale = targetW / vbW;
             const cv = document.createElement("canvas");
             cv.width = Math.max(1, Math.round(vbW * scale));
             cv.height = Math.max(1, Math.round(vbH * scale));
@@ -116,7 +118,12 @@ export async function exportChartPdf({
             ctx.fillStyle = "#ffffff";
             ctx.fillRect(0, 0, cv.width, cv.height);
             ctx.drawImage(im, 0, 0, cv.width, cv.height);
-            try { resolve(cv.toDataURL("image/png")); } catch (e) { reject(e as Error); }
+            try {
+              resolve({
+                pngUrl: cv.toDataURL("image/png"),
+                jpgUrl: cv.toDataURL("image/jpeg", 0.9),
+              });
+            } catch (e) { reject(e as Error); }
           };
           im.onerror = () => reject(new Error("SVG load failed"));
           im.src = svgUrl;
@@ -126,7 +133,7 @@ export async function exportChartPdf({
         img.style.display = "block";
         img.style.width = `${boxW}px`;
         img.style.height = `${boxH}px`;
-        rasters.set(img, { pngUrl, vbW, vbH, boxW, boxH });
+        rasters.set(img, { pngUrl, jpgUrl, vbW, vbH, boxW, boxH });
         svg.parentNode?.replaceChild(img, svg);
       }),
     );
