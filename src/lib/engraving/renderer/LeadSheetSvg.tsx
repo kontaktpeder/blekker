@@ -250,24 +250,34 @@ function MeasureNumber({ measure, staffTop, forceShow }: { measure: LaidMeasure;
 function LyricLine({ system, staffTop, lyrics }: { system: System; staffTop: number; lyrics: string }) {
   if (!lyrics) return null;
   const y = staffTop + UNIT.staffHeight + UNIT.lyricGap;
-  // One-line lyric strip beneath the staff, left-aligned to first measure.
   const startX = system.measures[0]?.x ?? 0;
   const w = system.contentWidth;
+  // Simple word-wrap by character count (heuristic — no font metrics available
+  // during SVG-to-canvas rasterization). ~54 chars fits per system width.
+  const lines: string[] = [];
+  const rawLines = lyrics.split(/\n/);
+  const maxChars = Math.max(20, Math.floor(w / (UNIT.fontLyric * 0.55)));
+  for (const raw of rawLines) {
+    const words = raw.split(/\s+/);
+    let cur = "";
+    for (const wd of words) {
+      if ((cur + " " + wd).trim().length > maxChars) {
+        if (cur) lines.push(cur);
+        cur = wd;
+      } else {
+        cur = cur ? cur + " " + wd : wd;
+      }
+    }
+    if (cur) lines.push(cur);
+  }
   return (
-    <foreignObject x={startX} y={y - 22} width={w} height={80}>
-      <div
-        style={{
-          fontFamily: SERIF,
-          fontStyle: "italic",
-          fontSize: `${UNIT.fontLyric}px`,
-          color: "#000",
-          lineHeight: 1.3,
-          whiteSpace: "pre-wrap",
-        }}
-      >
-        {lyrics}
-      </div>
-    </foreignObject>
+    <g fontFamily={SERIF} fontStyle="italic" fontSize={UNIT.fontLyric} fill="#000">
+      {lines.map((line, i) => (
+        <text key={i} x={startX} y={y + i * (UNIT.fontLyric * 1.25)}>
+          {line}
+        </text>
+      ))}
+    </g>
   );
 }
 

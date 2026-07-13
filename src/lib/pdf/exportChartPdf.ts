@@ -80,34 +80,112 @@ export async function exportChartPdf({
     const container = host.firstElementChild as HTMLElement | null;
     if (!container) throw new Error("Failed to render printable chart");
 
-    // html2canvas walks SVG element styles and dies on Tailwind v4's `lab()`
-    // colors. Rasterize every <svg> to a data-URL <img> in the SOURCE tree
-    // BEFORE html2canvas touches it (onclone runs too late for SVG parsing).
-    container.querySelectorAll("svg").forEach((svg) => {
-      const rect = svg.getBoundingClientRect();
-      const svgClone = svg.cloneNode(true) as SVGElement;
-      if (!svgClone.getAttribute("xmlns"))
-        svgClone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-      const xml = new XMLSerializer().serializeToString(svgClone);
-      const b64 = btoa(unescape(encodeURIComponent(xml)));
-      const img = document.createElement("img");
-      img.src = `data:image/svg+xml;base64,${b64}`;
-      img.style.display = "block";
-      img.style.width = `${rect.width || 700}px`;
-      img.style.height = `${rect.height || 44}px`;
-      svg.parentNode?.replaceChild(img, svg);
-    });
+    const [{ default: jsPDF }] = await Promise.all([import("jspdf")]);
+
+    // Rasterize every SVG to a PNG data-URL. The PNGs are the source of truth
+    // for both the "SVG-per-page" fast path (lead-sheet) AND as replacements
+    // for html2canvas so it never has to parse SVG styles.
+    interface Raster { pngUrl: string; jpgUrl: string; vbW: number; vbH: number; boxW: number; boxH: number }
+    const svgs = Array.from(container.querySelectorAll("svg"));
+    const rasters = new Map<Element, Raster>();
+    await Promise.all(
+      svgs.map(async (svg) => {
+        const rect = svg.getBoundingClientRect();
+        const vb = svg.getAttribute("viewBox")?.split(/\s+/).map(Number);
+        const vbW = vb?.[2] ?? rect.width ?? 700;
+        const vbH = vb?.[3] ?? rect.height ?? 990;
+        const boxW = rect.width || 794;
+        const boxH = boxW * (vbH / vbW);
+        const svgClone = svg.cloneNode(true) as SVGElement;
+        if (!svgClone.getAttribute("xmlns"))
+          svgClone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+        svgClone.setAttribute("width", String(vbW));
+        svgClone.setAttribute("height", String(vbH));
+        const xml = new XMLSerializer().serializeToString(svgClone);
+        const b64 = btoa(unescape(encodeURIComponent(xml)));
+        const svgUrl = `data:image/svg+xml;base64,${b64}`;
+        const { pngUrl, jpgUrl } = await new Promise<{ pngUrl: string; jpgUrl: string }>((resolve, reject) => {
+          const im = new Image();
+          im.onload = () => {
+            // Cap raster at ~2200px wide so PDFs stay under a few MB.
+            const targetW = Math.min(2200, vbW * 1.5);
+            const scale = targetW / vbW;
+            const cv = document.createElement("canvas");
+            cv.width = Math.max(1, Math.round(vbW * scale));
+            cv.height = Math.max(1, Math.round(vbH * scale));
+            const ctx = cv.getContext("2d");
+            if (!ctx) return reject(new Error("2d ctx"));
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, cv.width, cv.height);
+            ctx.drawImage(im, 0, 0, cv.width, cv.height);
+            try {
+              resolve({
+                pngUrl: cv.toDataURL("image/png"),
+                jpgUrl: cv.toDataURL("image/jpeg", 0.9),
+              });
+            } catch (e) { reject(e as Error); }
+          };
+          im.onerror = () => reject(new Error("SVG load failed"));
+          im.src = svgUrl;
+        });
+        const img = document.createElement("img");
+        img.src = pngUrl;
+        img.style.display = "block";
+        img.style.width = `${boxW}px`;
+        img.style.height = `${boxH}px`;
+        rasters.set(img, { pngUrl, jpgUrl, vbW, vbH, boxW, boxH });
+        svg.parentNode?.replaceChild(img, svg);
+      }),
+    );
 
     const sections = Array.from(
       container.querySelectorAll<HTMLElement>("[data-pdf-section]"),
     );
     if (sections.length === 0) throw new Error("No sections to export");
 
-    const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
-      import("html2canvas"),
-      import("jspdf"),
-    ]);
+    // Fast path: each section is a single full-page SVG (lead-sheet). Skip
+    // html2canvas entirely — one PNG per section → one PDF page.
+    const svgOnlySections = sections.every((s) => {
+      const kids = Array.from(s.children);
+      return kids.length === 1 && kids[0].tagName === "IMG" && rasters.has(kids[0]);
+    });
 
+    if (svgOnlySections) {
+      if (format === "sheet") {
+        for (let i = 0; i < sections.length; i++) {
+          const r = rasters.get(sections[i].firstElementChild as Element)!;
+          const a = document.createElement("a");
+          a.href = r.pngUrl;
+          a.download = buildFilename(
+            song,
+            layout,
+            `sheet${sections.length > 1 ? `-${i + 1}` : ""}.png`,
+          );
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+        }
+        return;
+      }
+      const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+      sections.forEach((s, i) => {
+        if (i > 0) pdf.addPage();
+        const r = rasters.get(s.firstElementChild as Element)!;
+        // Fit the rendered SVG page onto A4 while preserving aspect.
+        const aspect = r.vbH / r.vbW;
+        let w = A4_W_MM;
+        let h = w * aspect;
+        if (h > A4_H_MM) { h = A4_H_MM; w = h / aspect; }
+        const x = (A4_W_MM - w) / 2;
+        const y = (A4_H_MM - h) / 2;
+        pdf.addImage(r.jpgUrl, "JPEG", x, y, w, h);
+      });
+      pdf.save(buildFilename(song, layout, "pdf"));
+      return;
+    }
+
+    // Standard path (blekker) — snapshot each section via html2canvas.
+    const [{ default: html2canvas }] = await Promise.all([import("html2canvas")]);
     const cloneOptions = {
       onclone: (doc: Document) => {
         doc.querySelectorAll('style, link[rel="stylesheet"]').forEach((n) => n.remove());
@@ -128,16 +206,14 @@ export async function exportChartPdf({
       });
       const pxW = canvas.width / 2;
       const pxH = canvas.height / 2;
-      const scale = CONTENT_W_MM / pxW;
+      const s = CONTENT_W_MM / pxW;
       rendered.push({
         dataUrl: canvas.toDataURL("image/jpeg", 0.92),
-        heightMM: pxH * scale,
+        heightMM: pxH * s,
       });
     }
 
     if (format === "sheet") {
-      // Per-Sheet: render each section as its own PNG image download.
-      // Uses full-resolution snapshot rather than the paginated PDF flow.
       for (let i = 0; i < sections.length; i++) {
         const canvas = await html2canvas(sections[i], {
           scale: 2,
@@ -161,7 +237,6 @@ export async function exportChartPdf({
       return;
     }
 
-    // PDF: pack sections into pages (max 2 target, overflow allowed).
     const MAX_PAGES = 2;
     const pages: { dataUrl: string; heightMM: number }[][] = [[]];
     let pageH = 0;
@@ -177,7 +252,6 @@ export async function exportChartPdf({
     }
 
     const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
-
     pages.forEach((pageSections, pageIdx) => {
       if (pageIdx > 0) pdf.addPage();
       const totalSecH = pageSections.reduce((s, x) => s + x.heightMM, 0);
