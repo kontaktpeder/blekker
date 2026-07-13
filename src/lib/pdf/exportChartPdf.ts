@@ -178,7 +178,7 @@ export async function exportChartPdf({
         if (h > A4_H_MM) { h = A4_H_MM; w = h / aspect; }
         const x = (A4_W_MM - w) / 2;
         const y = (A4_H_MM - h) / 2;
-        pdf.addImage(r.pngUrl, "PNG", x, y, w, h);
+        pdf.addImage(r.jpgUrl, "JPEG", x, y, w, h);
       });
       pdf.save(buildFilename(song, layout, "pdf"));
       return;
