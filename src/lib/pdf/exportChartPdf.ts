@@ -58,7 +58,6 @@ export async function exportChartPdf({
   format = "pdf",
   variant,
 }: ExportOptions): Promise<void> {
-  console.log("[exportChartPdf] start", { layout, format, showLyrics });
   const LayoutComponent = LAYOUTS[layout].Component;
 
   const host = document.createElement("div");
