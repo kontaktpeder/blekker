@@ -11,8 +11,8 @@ function noteIndex(n: string): number {
   return idx;
 }
 
-/** Transpose a chord symbol like "Am7", "F#m", "C/E", "Bbmaj7" by N semitones. */
-export function transposeChord(chord: string, semitones: number, preferFlats = false): string {
+/** Transpose a single chord token like "Am7", "F#m", "C/E", "Bbmaj7". */
+function transposeOne(chord: string, semitones: number, preferFlats = false): string {
   if (!chord || chord === "-" || chord === "%") return chord;
   const pool = preferFlats ? NOTES_FLAT : NOTES_SHARP;
   const re = /^([A-G][#b]?)(.*?)(?:\/([A-G][#b]?))?$/;
@@ -28,6 +28,19 @@ export function transposeChord(chord: string, semitones: number, preferFlats = f
     result += "/" + pool[(bi + semitones + 120) % 12];
   }
   return result;
+}
+
+/**
+ * Transpose a chord symbol. Multi-chord bars ("C G/B Am" walkdowns) transpose
+ * each token — never collapse to one chord.
+ */
+export function transposeChord(chord: string, semitones: number, preferFlats = false): string {
+  if (!chord || chord === "-" || chord === "%") return chord;
+  const parts = chord.trim().split(/\s+/).filter(Boolean);
+  if (parts.length > 1) {
+    return parts.map((p) => transposeOne(p, semitones, preferFlats)).join(" ");
+  }
+  return transposeOne(chord.trim(), semitones, preferFlats);
 }
 
 export function transposeKey(key: string, semitones: number): string {

@@ -276,8 +276,11 @@ function ChordSymbols({ measure, staffTop }: { measure: LaidMeasure; staffTop: n
   const m = measure.measure;
   if (m.chords.length === 0) return null;
   const y = staffTop - 18;
+  // Slightly smaller when a walkdown packs 3+ symbols into one bar.
+  const fontSize =
+    m.chords.length >= 3 ? UNIT.fontChord * 0.82 : m.chords.length === 2 ? UNIT.fontChord * 0.92 : UNIT.fontChord;
   return (
-    <g fontFamily={SERIF} fontWeight={700} fontSize={UNIT.fontChord} fill="#000">
+    <g fontFamily={SERIF} fontWeight={700} fontSize={fontSize} fill="#000">
       {m.chords.map((c, i) => {
         const bx = measure.beatX[c.beat - 1] ?? measure.beatX[0];
         return (

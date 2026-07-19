@@ -64,13 +64,16 @@ function normalizeSection(
         slash = "rest";
       }
 
-      // Distribute chord tokens across beat positions.
-      // 1 chord → beat 1. 2 chords → beats 1 and beatsPerBar/2+1.
-      // n chords → evenly across beats.
+      // Distribute chord tokens across beat positions (walkdowns stay visible).
+      // 1 chord → beat 1. 2 → beats 1 and 3 (in 4/4). 3 → beats 1, 2, 4. Else even.
       if (chordTokens.length > 0) {
         const n = chordTokens.length;
         chords = chordTokens.map((c, i) => {
-          const beat = Math.round(1 + (i * beatsPerBar) / Math.max(1, n));
+          let beat: number;
+          if (n === 1) beat = 1;
+          else if (n === 2) beat = i === 0 ? 1 : Math.floor(beatsPerBar / 2) + 1;
+          else if (n === 3 && beatsPerBar === 4) beat = [1, 2, 4][i]!;
+          else beat = Math.round(1 + (i * (beatsPerBar - 1)) / Math.max(1, n - 1));
           return {
             beat: Math.min(beatsPerBar, Math.max(1, beat)),
             symbol: transposeChord(c, semitones),

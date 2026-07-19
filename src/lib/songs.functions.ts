@@ -204,7 +204,7 @@ The JSON MUST match this TypeScript shape exactly:
       "type": "intro"|"verse"|"chorus"|"bridge"|"outro"|"interlude"|"solo",
       "name": string,           // "Intro", "Verse 1", "Chorus", ...
       "bars": number,           // 1..32, integer
-      "chords": string[],       // ONE chord per bar; use "%" to repeat previous bar
+      "chords": string[],       // one entry PER BAR; within a bar multiple chords are SPACE-SEPARATED, e.g. "C G/B Am"
       "lyrics": string|null,    // plain lyrics for this section, line-broken, no chord markers inline
       "notes": string|null,     // short band note, e.g. "Drop to half-time", or null
       "repeat": number|null     // play this section N times, null if 1 — prefer expanding structure instead of repeat>1
@@ -220,8 +220,15 @@ CRITICAL FORM FIDELITY (Ultimate Guitar / chords-over-words):
 - Different verses keep different lyrics. Key-change choruses keep the later chords — do not merge with the earlier chorus.
 - Prefer expanding the form over using repeat>1.
 
+CRITICAL CHORD FIDELITY (walkdowns / multi-chord bars):
+- chords[] has ONE STRING PER BAR. If several chords share a bar (UG clusters like C then G/B then Am over a few syllables), put them in THAT bar as a space-separated string: "C G/B Am".
+- NEVER collapse a walkdown or passing bass to a single chord. "C G/B Am" must stay "C G/B Am" — not "Am", not "C".
+- Slash chords (G/B, C/E, D/F#) are real harmony — keep the bass note.
+- Typical loop Dm G C G/B Am → e.g. ["Dm","G","C","G/B Am"] or ["Dm","G","C G/B Am",…] matching how the source groups them — but every printed chord symbol must appear in the output.
+- "%" = repeat previous bar; "-" = empty/sustain. Do not invent chords.
+
 Other rules:
-- Always output bars as one chord per bar. If a bar holds 2 chords, pick the strongest.
+- Prefer one harmonic idea per bar, but when the source shows 2–3 chords in one bar, keep all of them space-separated.
 - Use sharps in chord symbols by default (C#, F#) unless source clearly uses flats.
 - Strip out tab numbers; [Verse]-style markers belong in structure/name, not lyrics.
 - Never add commentary outside the JSON. No markdown fences.`;

@@ -1,0 +1,14 @@
+---
+description: Never collapse multi-chord bars / walkdowns on import or charts
+alwaysApply: true
+---
+
+# Multi-chord bars (walkdowns)
+
+Global for **every** chart — e.g. UG `C G/B Am` must not become `Am`:
+
+- `chords[]` is one string **per bar**. Several chords in the same bar are **space-separated**: `"C G/B Am"`.
+- Never “pick the strongest” chord. Keep slash bass (G/B, C/E) and every printed symbol from the source.
+- Engraving already splits on whitespace into beat positions (`normalize.ts`). Import AI prompt in `songs.functions.ts` must preserve this.
+- `transposeChord` must transpose each token in a multi-chord bar, not the whole string as one chord.
+- When fixing imports or prompts, add examples like `Dm G C G/B Am` → `["Dm","G","C","G/B Am"]` (or equivalent grouping) — all five symbols still present.
