@@ -9,15 +9,15 @@ export const PAGE = {
   height: 2970,
   marginX: 120,
   marginTop: 100,
-  marginBottom: 90,
+  marginBottom: 120,
   headerHeight: 200,
   sectionLabelWidth: 180,
-  systemGap: 52,
-  systemHeightNoLyrics: 195,
+  systemGap: 64,
+  systemHeightNoLyrics: 210,
   maxLyricLinesForHeight: 5,
-  /** Soft cap — orphan systems on page 3+ get compressed away. */
+  /** Target page count for band charts. */
   maxPages: 2,
-  /** If the last page has this many systems or fewer, force a tighter density. */
+  /** Last page with this many systems or fewer is treated as an orphan — rebalance. */
   orphanSystemThreshold: 3,
 } as const;
 
@@ -44,50 +44,52 @@ export interface DensityPreset {
   marginTop: number;
 }
 
-/** Comfortable → squeeze. Used to keep charts on ≤ 2 pages. */
+/**
+ * Spacious → only mildly compact. Avoid “squeeze” for normal charts —
+ * prefer two readable pages over cramming onto one.
+ */
 export const DENSITY_PRESETS: DensityPreset[] = [
   {
     id: "comfortable",
-    systemGap: 52,
+    systemGap: 68,
     heightScale: 1,
     lyricGapScale: 1,
+    maxMeasuresPerSystem: 4,
+    headerHeight: 210,
+    marginTop: 110,
+  },
+  {
+    id: "roomy",
+    systemGap: 56,
+    heightScale: 0.98,
+    lyricGapScale: 0.96,
     maxMeasuresPerSystem: 4,
     headerHeight: 200,
     marginTop: 100,
   },
   {
     id: "compact",
-    systemGap: 38,
+    systemGap: 44,
     heightScale: 0.94,
     lyricGapScale: 0.9,
     maxMeasuresPerSystem: 5,
-    headerHeight: 180,
+    headerHeight: 185,
     marginTop: 90,
   },
   {
     id: "tight",
-    systemGap: 28,
-    heightScale: 0.88,
-    lyricGapScale: 0.82,
-    maxMeasuresPerSystem: 6,
-    headerHeight: 170,
-    marginTop: 80,
-  },
-  {
-    id: "squeeze",
-    systemGap: 20,
-    heightScale: 0.82,
-    lyricGapScale: 0.75,
-    maxMeasuresPerSystem: 8,
-    headerHeight: 160,
-    marginTop: 72,
+    systemGap: 34,
+    heightScale: 0.9,
+    lyricGapScale: 0.86,
+    maxMeasuresPerSystem: 5,
+    headerHeight: 175,
+    marginTop: 84,
   },
 ];
 
 /** Rough lyric line count — one clean line per system after distribution. */
 export function countLyricLines(lyrics: string | undefined, _contentWidth: number): number {
   if (!lyrics?.trim()) return 0;
-  // Distributed lyrics are a single line (possibly joined with ·).
   return 1;
 }
 
@@ -99,16 +101,27 @@ export function systemBlockHeight(
     countLyricLines(sys.sectionLyrics, sys.contentWidth),
     PAGE.maxLyricLinesForHeight,
   );
-  const notesExtra = sys.sectionNotes?.trim() ? UNIT.notesRow + 8 : 0;
+  const notesExtra = sys.sectionNotes?.trim() ? UNIT.notesRow + 10 : 0;
   const lyricGap = UNIT.lyricGap * density.lyricGapScale;
   const lyricH =
-    lyricLines > 0 ? lyricGap + lyricLines * (UNIT.fontLyric * 1.2 * density.lyricGapScale) : 0;
+    lyricLines > 0 ? lyricGap + lyricLines * (UNIT.fontLyric * 1.25 * density.lyricGapScale) : 0;
   const base = PAGE.systemHeightNoLyrics + notesExtra + lyricH;
   return Math.round(base * density.heightScale);
 }
 
 function pageContentTop(hasHeader: boolean, density: DensityPreset): number {
-  return density.marginTop + (hasHeader ? density.headerHeight : 36);
+  return density.marginTop + (hasHeader ? density.headerHeight : 40);
+}
+
+function pageCapacity(hasHeader: boolean, density: DensityPreset): number {
+  return PAGE.height - PAGE.marginBottom - pageContentTop(hasHeader, density);
+}
+
+/** Stack height for a run of systems (blocks + gaps between them). */
+function stackHeight(systems: System[], density: DensityPreset): number {
+  if (systems.length === 0) return 0;
+  const blocks = systems.reduce((a, s) => a + systemBlockHeight(s, density), 0);
+  return blocks + density.systemGap * (systems.length - 1);
 }
 
 function packSystemsVertically(
@@ -124,12 +137,15 @@ function packSystemsVertically(
   const available = bottom - top - totalH;
 
   let useGap = density.systemGap;
-  if (gaps > 0 && available > 0) {
-    if (available > density.systemGap * gaps * 1.4) {
-      // Sparse page — keep compact at top, don't stretch.
-      useGap = Math.max(16, Math.round(density.systemGap * 0.85));
+  if (gaps > 0) {
+    if (available < 12 * gaps) {
+      // Keep systems on-page — never let packing overflow the bottom margin.
+      useGap = Math.max(10, Math.floor(Math.max(available, 10 * gaps) / gaps));
+    } else if (available > density.systemGap * gaps * 1.25) {
+      // Short page: open gaps slightly, leave a little air at the bottom.
+      useGap = Math.min(Math.round(density.systemGap * 1.2), Math.floor(available / gaps));
     } else {
-      useGap = Math.min(density.systemGap, Math.max(14, available / gaps));
+      useGap = Math.min(density.systemGap, Math.max(16, Math.floor(available / gaps)));
     }
   }
 
@@ -141,6 +157,31 @@ function packSystemsVertically(
   });
 }
 
+function buildPages(groups: System[][], density: DensityPreset): Page[] {
+  return groups.map((group, pageIdx) => {
+    const positioned: PositionedSystem[] = group.map((sys) => ({
+      system: sys,
+      x: PAGE.marginX,
+      y: 0,
+      height: systemBlockHeight(sys, density),
+    }));
+    const packed = packSystemsVertically(positioned, pageIdx === 0, density);
+    return { index: pageIdx, systems: packed, showHeader: pageIdx === 0 };
+  });
+}
+
+function pageFits(systems: System[], hasHeader: boolean, density: DensityPreset): boolean {
+  return stackHeight(systems, density) <= pageCapacity(hasHeader, density) + 1;
+}
+
+function isSparseLastPage(pages: Page[]): boolean {
+  if (pages.length < 2) return false;
+  return pages[pages.length - 1].systems.length <= PAGE.orphanSystemThreshold;
+}
+
+/**
+ * Natural top-to-bottom flow; breaks when the next system would clip.
+ */
 export function paginateWithDensity(
   _score: NormalizedScore,
   systems: System[],
@@ -171,15 +212,54 @@ export function paginateWithDensity(
   return pages;
 }
 
-function isOrphanLastPage(pages: Page[]): boolean {
-  if (pages.length <= PAGE.maxPages) return false;
-  const last = pages[pages.length - 1];
-  return last.systems.length <= PAGE.orphanSystemThreshold;
-}
+/**
+ * Split systems across exactly `pageCount` pages, balancing height and
+ * avoiding a nearly-empty last page.
+ */
+export function splitAcrossPages(
+  systems: System[],
+  density: DensityPreset,
+  pageCount: number,
+): System[][] | null {
+  if (systems.length === 0) return [];
+  if (pageCount <= 1) return [systems];
+  if (systems.length < pageCount) return null;
 
-function needsTighterFit(pages: Page[]): boolean {
-  if (pages.length > PAGE.maxPages) return true;
-  return false;
+  if (pageCount === 2) {
+    let best: { split: number; score: number } | null = null;
+    for (let split = 1; split < systems.length; split++) {
+      const first = systems.slice(0, split);
+      const second = systems.slice(split);
+      if (!pageFits(first, true, density)) continue;
+      if (!pageFits(second, false, density)) continue;
+
+      const c1 = pageCapacity(true, density);
+      const c2 = pageCapacity(false, density);
+      const f1 = stackHeight(first, density) / c1;
+      const f2 = stackHeight(second, density) / c2;
+      // Prefer even fill; heavily penalize orphan last pages.
+      let score = Math.abs(f1 - f2);
+      if (second.length <= PAGE.orphanSystemThreshold) score += 2;
+      if (second.length === 1) score += 3;
+      // Mild preference for not overstuffing page 1.
+      if (f1 > 0.96) score += 0.4;
+
+      if (!best || score < best.score) best = { split, score };
+    }
+    if (!best) return null;
+    return [systems.slice(0, best.split), systems.slice(best.split)];
+  }
+
+  // Generic even split by count, then validate.
+  const groups: System[][] = Array.from({ length: pageCount }, () => []);
+  systems.forEach((s, i) => {
+    groups[Math.min(pageCount - 1, Math.floor((i * pageCount) / systems.length))].push(s);
+  });
+  for (let i = 0; i < pageCount; i++) {
+    if (groups[i].length === 0) return null;
+    if (!pageFits(groups[i], i === 0, density)) return null;
+  }
+  return groups;
 }
 
 export interface FitResult {
@@ -189,42 +269,68 @@ export interface FitResult {
 }
 
 /**
- * Layout + paginate, stepping through denser presets until the chart fits on
- * ≤ 2 pages. Especially collapses the case where 1–3 leftover systems would
- * otherwise spill onto a nearly-blank third page.
+ * Layout + paginate for band use: prefer two spacious pages.
+ * Never leave a single orphan system on page 2 while crushing page 1.
  */
 export function fitLeadSheetPages(
   score: NormalizedScore,
   systemContentWidth: number,
 ): FitResult {
-  let best: FitResult | null = null;
+  let fallback: FitResult | null = null;
 
   for (const density of DENSITY_PRESETS) {
     const systems = layoutScore(score, {
       systemContentWidth,
       maxMeasuresPerSystem: density.maxMeasuresPerSystem,
     });
-    const pages = paginateWithDensity(score, systems, density);
-    const result = { pages, density, systems };
 
-    if (!best || pages.length < best.pages.length) best = result;
-    else if (
-      best &&
-      pages.length === best.pages.length &&
-      pages[pages.length - 1].systems.length >
-        best.pages[best.pages.length - 1].systems.length
+    // Short charts may stay on one page if they fit with room to spare.
+    if (
+      systems.length > 0 &&
+      systems.length <= 7 &&
+      pageFits(systems, true, density)
     ) {
-      // Prefer more content on the last page (less sparse) at same page count.
-      best = result;
+      const pages = buildPages([systems], density);
+      return { pages, density, systems };
     }
 
-    if (!needsTighterFit(pages) && !isOrphanLastPage(pages)) {
-      return result;
+    // Preferred path: exactly two balanced pages.
+    const split = splitAcrossPages(systems, density, PAGE.maxPages);
+    if (split) {
+      const pages = buildPages(split, density);
+      if (!isSparseLastPage(pages) || systems.length <= PAGE.orphanSystemThreshold + 1) {
+        return { pages, density, systems };
+      }
+      // Still sparse but both pages fit — accept first spacious density.
+      return { pages, density, systems };
     }
-    // Continue if we still have >2 pages (orphan rule covered by needsTighterFit).
+
+    // Natural flow as fallback candidate (may be 3+ pages).
+    const natural = paginateWithDensity(score, systems, density);
+    if (!fallback || natural.length < fallback.pages.length) {
+      fallback = { pages: natural, density, systems };
+    }
+    if (natural.length <= PAGE.maxPages && !isSparseLastPage(natural)) {
+      return { pages: natural, density, systems };
+    }
   }
 
-  return best!;
+  // Last resort: densest preset, force the best 2-page split even if slightly tight.
+  const density = DENSITY_PRESETS[DENSITY_PRESETS.length - 1];
+  const systems = layoutScore(score, {
+    systemContentWidth,
+    maxMeasuresPerSystem: density.maxMeasuresPerSystem,
+  });
+  const forced = splitAcrossPages(systems, density, PAGE.maxPages);
+  if (forced) {
+    return { pages: buildPages(forced, density), density, systems };
+  }
+
+  return fallback ?? {
+    pages: paginateWithDensity(score, systems, density),
+    density,
+    systems,
+  };
 }
 
 /** @deprecated Prefer fitLeadSheetPages — kept for simple callers. */
