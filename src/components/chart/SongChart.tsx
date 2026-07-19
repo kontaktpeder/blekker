@@ -149,34 +149,27 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
     if (!isLive || scrollSpeed === 0) return;
     const el = scrollRef.current;
     if (!el) return;
-    const pxPerSec = scrollSpeed === 1 ? 24 : scrollSpeed === 2 ? 52 : 96;
+    // Stage-readable speeds (px/s). Was too slow; scroll-listener also paused every frame.
+    const pxPerSec = scrollSpeed === 1 ? 55 : scrollSpeed === 2 ? 110 : 190;
     let raf = 0;
     let last = performance.now();
-    /** While the user is scrolling, freeze auto-advance; resume from their position. */
+    /** Pause only on real user input — not on our own scrollTop writes. */
     let pauseUntil = 0;
-    let writing = false;
     const pauseForUser = () => {
-      pauseUntil = performance.now() + 600;
-    };
-    const onScroll = () => {
-      if (writing) return;
-      pauseForUser();
+      pauseUntil = performance.now() + 500;
     };
 
     el.addEventListener("wheel", pauseForUser, { passive: true });
     el.addEventListener("touchstart", pauseForUser, { passive: true });
     el.addEventListener("touchmove", pauseForUser, { passive: true });
     el.addEventListener("pointerdown", pauseForUser);
-    el.addEventListener("scroll", onScroll, { passive: true });
 
     const tick = (now: number) => {
-      const dt = Math.min(0.05, (now - last) / 1000);
+      const dt = Math.min(0.064, (now - last) / 1000);
       last = now;
       const max = Math.max(0, el.scrollHeight - el.clientHeight);
-      if (now >= pauseUntil) {
-        writing = true;
+      if (now >= pauseUntil && max > 0) {
         el.scrollTop = Math.min(el.scrollTop + pxPerSec * dt, max);
-        writing = false;
       }
       if (el.scrollTop >= max - 1) return;
       raf = requestAnimationFrame(tick);
@@ -188,7 +181,6 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
       el.removeEventListener("touchstart", pauseForUser);
       el.removeEventListener("touchmove", pauseForUser);
       el.removeEventListener("pointerdown", pauseForUser);
-      el.removeEventListener("scroll", onScroll);
     };
   }, [isLive, scrollSpeed]);
 
@@ -502,9 +494,12 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
                 <span className="text-muted-foreground text-[10px] tracking-[0.2em] mr-1">KEY</span>
                 {displayKey}
               </span>
-              <span>
-                <span className="text-muted-foreground text-[10px] tracking-[0.2em] mr-1">BPM</span>
-                {working.bpm}
+              <span className="flex items-center gap-2">
+                <TempoPulse bpm={working.bpm} />
+                <span>
+                  <span className="text-muted-foreground text-[10px] tracking-[0.2em] mr-1">BPM</span>
+                  {working.bpm}
+                </span>
               </span>
             </div>
             <div className="flex items-center border-l border-border pl-2">
@@ -612,7 +607,10 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
             <div className="mt-5 flex flex-wrap items-center gap-3 md:gap-5 rounded-lg border border-border bg-card/60 px-4 py-2 font-mono tabular-nums text-sm md:text-base w-fit">
               <Meta label="KEY" value={displayKey} />
               <div className="ticker-divider" />
-              <Meta label="BPM" value={String(working.bpm)} />
+              <div className="flex items-center gap-2.5">
+                <TempoPulse bpm={working.bpm} size="md" />
+                <Meta label="BPM" value={String(working.bpm)} />
+              </div>
               <div className="ticker-divider" />
               <Meta label="CAPO" value={working.capo ? String(working.capo) : "—"} />
               {working.timeSig && (
@@ -663,6 +661,20 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
         busy={exporting}
       />
     </div>
+  );
+}
+
+function TempoPulse({ bpm, size = "sm" }: { bpm: number; size?: "sm" | "md" }) {
+  const safe = Math.max(40, Math.min(240, bpm || 120));
+  const periodSec = 60 / safe;
+  const dim = size === "md" ? "h-3.5 w-3.5" : "h-2.5 w-2.5";
+  return (
+    <span
+      className={cn("blekker-tempo-pulse inline-block rounded-full bg-primary shrink-0", dim)}
+      style={{ animationDuration: `${periodSec}s` }}
+      title={`${safe} BPM`}
+      aria-hidden
+    />
   );
 }
 
