@@ -5,14 +5,15 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { SectionCard } from "./SectionCard";
 import { FormStrip } from "./FormStrip";
-import { LyricSheet } from "./LyricSheet";
+import { LeadSheetChart } from "./LeadSheetChart";
 import { exportChartPdf } from "@/lib/pdf/exportChartPdf";
 import { ExportDialog } from "./ExportDialog";
 import type { ExportFormat, ExportLayout, LeadSheetVariant } from "@/lib/pdf/layouts";
 import { toast } from "sonner";
 
 type ViewMode = "full" | "chart" | "form" | "live";
-type LiveLayout = "sheet" | "grid";
+/** Live default is the engraved lead sheet; grid is the stage chord cells. */
+type LiveLayout = "lead" | "grid";
 
 const MODES: { id: ViewMode; label: string }[] = [
   { id: "full", label: "Full" },
@@ -29,21 +30,18 @@ export function SongChart({ song }: Props) {
   const [mode, setMode] = useState<ViewMode>("full");
   const [semitones, setSemitones] = useState(0);
   const [showLyrics, setShowLyrics] = useState(true);
-  const [scrollSpeed, setScrollSpeed] = useState(0); // 0=off, 1=slow, 2=med, 3=fast
+  const [scrollSpeed, setScrollSpeed] = useState(0);
   const [exporting, setExporting] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
-  const [liveLayout, setLiveLayout] = useState<LiveLayout>("sheet");
-  const [sheetFontStep, setSheetFontStep] = useState(0);
+  const [liveLayout, setLiveLayout] = useState<LiveLayout>("lead");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const displayKey = useMemo(() => transposeKey(song.key, semitones), [song.key, semitones]);
   const isLive = mode === "live";
-  const isLiveSheet = isLive && liveLayout === "sheet";
+  const isLiveLead = isLive && liveLayout === "lead";
   const showNotes = mode === "full" || (isLive && liveLayout === "grid");
   const lyricsOn = showLyrics && (mode === "full" || (isLive && liveLayout === "grid"));
 
-  // Autoscroll: keep a virtual scroll position so slow/medium speeds don't get
-  // rounded away by browsers that quantize scrollTop writes per frame.
   useEffect(() => {
     if (!isLive || scrollSpeed === 0) return;
     const el = scrollRef.current;
@@ -64,7 +62,6 @@ export function SongChart({ song }: Props) {
     return () => cancelAnimationFrame(raf);
   }, [isLive, scrollSpeed]);
 
-  // Stop autoscroll when leaving live mode
   useEffect(() => {
     if (!isLive) setScrollSpeed(0);
   }, [isLive]);
@@ -90,10 +87,9 @@ export function SongChart({ song }: Props) {
       className={cn(
         "flex flex-col h-full",
         isLive && "fixed inset-0 z-50",
-        isLiveSheet ? "live-sheet-bg" : isLive && "bg-background",
+        isLiveLead ? "live-lead-bg" : isLive && "bg-background",
       )}
     >
-      {/* Header — hidden in Live mode for distraction-free fullscreen */}
       {!isLive && (
         <header className="border-b border-border/70 bg-background/80 backdrop-blur-md px-5 md:px-8 py-4">
           <div className="flex items-start justify-between gap-6 flex-wrap">
@@ -195,23 +191,22 @@ export function SongChart({ song }: Props) {
         </header>
       )}
 
-      {/* Live-mode minimal floating controls */}
       {isLive && (
-        <div className="absolute top-4 right-4 z-10 flex flex-wrap items-center justify-end gap-2 rounded-lg border border-border bg-background/80 backdrop-blur-md px-3 py-2 font-mono max-w-[calc(100%-2rem)]">
+        <div className="absolute top-4 right-4 z-10 flex flex-wrap items-center justify-end gap-2 rounded-lg border border-neutral-300 bg-white/90 text-neutral-900 shadow-md backdrop-blur-md px-3 py-2 font-mono max-w-[calc(100%-2rem)]">
           <div className="flex items-center gap-3 px-2 tabular-nums text-sm">
             <span>
-              <span className="text-muted-foreground text-[10px] tracking-[0.2em] mr-1">KEY</span>
+              <span className="text-neutral-500 text-[10px] tracking-[0.2em] mr-1">KEY</span>
               {displayKey}
             </span>
             <span>
-              <span className="text-muted-foreground text-[10px] tracking-[0.2em] mr-1">BPM</span>
+              <span className="text-neutral-500 text-[10px] tracking-[0.2em] mr-1">BPM</span>
               {song.bpm}
             </span>
           </div>
-          <div className="flex items-center border-l border-border pl-2">
+          <div className="flex items-center border-l border-neutral-300 pl-2">
             <button
               onClick={() => setSemitones((s) => s - 1)}
-              className="p-1.5 hover:bg-accent rounded"
+              className="p-1.5 hover:bg-neutral-100 rounded"
               aria-label="Transpose down"
             >
               <Minus className="h-4 w-4" />
@@ -221,29 +216,33 @@ export function SongChart({ song }: Props) {
             </div>
             <button
               onClick={() => setSemitones((s) => s + 1)}
-              className="p-1.5 hover:bg-accent rounded"
+              className="p-1.5 hover:bg-neutral-100 rounded"
               aria-label="Transpose up"
             >
               <Plus className="h-4 w-4" />
             </button>
           </div>
 
-          <div className="flex items-center border-l border-border pl-2 gap-0.5">
+          <div className="flex items-center border-l border-neutral-300 pl-2 gap-0.5">
             <button
-              onClick={() => setLiveLayout("sheet")}
+              onClick={() => setLiveLayout("lead")}
               className={cn(
                 "px-2 py-1 text-[10px] tracking-[0.15em] rounded",
-                liveLayout === "sheet" ? "bg-primary text-primary-foreground" : "hover:bg-accent text-muted-foreground",
+                liveLayout === "lead"
+                  ? "bg-neutral-900 text-white"
+                  : "hover:bg-neutral-100 text-neutral-500",
               )}
-              aria-label="Lyric sheet layout"
+              aria-label="Lead sheet layout"
             >
-              SHEET
+              LEAD
             </button>
             <button
               onClick={() => setLiveLayout("grid")}
               className={cn(
                 "px-2 py-1 text-[10px] tracking-[0.15em] rounded",
-                liveLayout === "grid" ? "bg-primary text-primary-foreground" : "hover:bg-accent text-muted-foreground",
+                liveLayout === "grid"
+                  ? "bg-neutral-900 text-white"
+                  : "hover:bg-neutral-100 text-neutral-500",
               )}
               aria-label="Chord grid layout"
             >
@@ -251,28 +250,9 @@ export function SongChart({ song }: Props) {
             </button>
           </div>
 
-          {isLiveSheet && (
-            <div className="flex items-center border-l border-border pl-2">
-              <button
-                onClick={() => setSheetFontStep((s) => Math.max(-3, s - 1))}
-                className="px-2 py-1 text-[10px] tracking-wider hover:bg-accent rounded"
-                aria-label="Smaller font"
-              >
-                −1
-              </button>
-              <button
-                onClick={() => setSheetFontStep((s) => Math.min(4, s + 1))}
-                className="px-2 py-1 text-[10px] tracking-wider hover:bg-accent rounded"
-                aria-label="Larger font"
-              >
-                +1
-              </button>
-            </div>
-          )}
-
           <button
             onClick={() => setScrollSpeed((s) => (s + 1) % 4)}
-            className="flex items-center gap-1 px-2 py-1.5 hover:bg-accent rounded border-l border-border ml-1"
+            className="flex items-center gap-1 px-2 py-1.5 hover:bg-neutral-100 rounded border-l border-neutral-300 ml-1"
             aria-label="Autoscroll speed"
             title="Autoscroll"
           >
@@ -281,19 +261,17 @@ export function SongChart({ song }: Props) {
               {scrollSpeed === 0 ? "OFF" : scrollSpeed === 1 ? "SLOW" : scrollSpeed === 2 ? "MED" : "FAST"}
             </span>
           </button>
-          {!isLiveSheet && (
-            <button
-              onClick={() => setShowLyrics((v) => !v)}
-              className="p-1.5 hover:bg-accent rounded border-l border-border ml-1 pl-2"
-              aria-label="Toggle lyrics"
-            >
-              {showLyrics ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-            </button>
-          )}
+          <button
+            onClick={() => setShowLyrics((v) => !v)}
+            className="p-1.5 hover:bg-neutral-100 rounded border-l border-neutral-300 ml-1 pl-2"
+            aria-label="Toggle lyrics"
+          >
+            {showLyrics ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+          </button>
           <button
             onClick={() => setExportOpen(true)}
             disabled={exporting}
-            className="p-1.5 hover:bg-accent rounded border-l border-border ml-1 pl-2 disabled:opacity-50"
+            className="p-1.5 hover:bg-neutral-100 rounded border-l border-neutral-300 ml-1 pl-2 disabled:opacity-50"
             aria-label="Last ned PDF"
             title="Last ned PDF"
           >
@@ -301,7 +279,7 @@ export function SongChart({ song }: Props) {
           </button>
           <button
             onClick={() => setMode("full")}
-            className="p-1.5 hover:bg-accent rounded border-l border-border ml-1 pl-2"
+            className="p-1.5 hover:bg-neutral-100 rounded border-l border-neutral-300 ml-1 pl-2"
             aria-label="Exit live"
           >
             <X className="h-4 w-4" />
@@ -309,16 +287,17 @@ export function SongChart({ song }: Props) {
         </div>
       )}
 
-      {/* Body */}
       <div
         ref={scrollRef}
         className={cn(
           "flex-1 overflow-y-auto",
-          isLiveSheet ? "px-3 md:px-8 py-8 md:py-10" : "px-2 md:px-6 py-6",
+          isLiveLead ? "px-3 md:px-6 py-6 md:py-8" : "px-2 md:px-6 py-6",
         )}
       >
-        {isLiveSheet ? (
-          <LyricSheet song={song} semitones={semitones} fontStep={sheetFontStep} />
+        {isLiveLead ? (
+          <div className="live-lead-sheet mx-auto w-full max-w-[210mm]">
+            <LeadSheetChart song={song} semitones={semitones} showLyrics={showLyrics} />
+          </div>
         ) : (
           <>
             {isLive && (
