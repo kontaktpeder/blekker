@@ -88,11 +88,12 @@ function normalizeSection(
     });
   });
 
-  // Section-level repeat count → marker on the last bar.
+  // Section-level repeat → start/end repeat barlines (+ ×N above the end).
   if (section.repeat && section.repeat > 1 && measures.length > 0) {
+    measures[0].markers.push({ kind: "repeat-start" });
     measures[measures.length - 1].markers.push({
-      kind: "repeat-count",
-      text: `x${section.repeat}`,
+      kind: "repeat-end",
+      text: `×${section.repeat}`,
     });
   }
 

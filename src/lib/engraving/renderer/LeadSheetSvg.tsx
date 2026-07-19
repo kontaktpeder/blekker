@@ -167,7 +167,17 @@ function Slashes({ measure, x, w, staffY }: { measure: LaidMeasure; x: number; w
   return <g>{items}</g>;
 }
 
-function Barline({ x, y, height, kind }: { x: number; y: number; height: number; kind: "single" | "final" | "section" }) {
+function Barline({
+  x,
+  y,
+  height,
+  kind,
+}: {
+  x: number;
+  y: number;
+  height: number;
+  kind: "single" | "final" | "section" | "repeat-start" | "repeat-end";
+}) {
   if (kind === "final") {
     return (
       <g>
@@ -181,6 +191,32 @@ function Barline({ x, y, height, kind }: { x: number; y: number; height: number;
       <g>
         <line x1={x - 4} x2={x - 4} y1={y} y2={y + height} stroke="#000" strokeWidth={1.4} />
         <line x1={x} x2={x} y1={y} y2={y + height} stroke="#000" strokeWidth={1.4} />
+      </g>
+    );
+  }
+  if (kind === "repeat-start") {
+    // Thick | thin then dots facing into the music
+    const d1 = y + UNIT.staffLine * 1.5;
+    const d2 = y + UNIT.staffLine * 2.5;
+    return (
+      <g>
+        <line x1={x} x2={x} y1={y} y2={y + height} stroke="#000" strokeWidth={4} />
+        <line x1={x + 7} x2={x + 7} y1={y} y2={y + height} stroke="#000" strokeWidth={1.4} />
+        <circle cx={x + 16} cy={d1} r={2.8} fill="#000" />
+        <circle cx={x + 16} cy={d2} r={2.8} fill="#000" />
+      </g>
+    );
+  }
+  if (kind === "repeat-end") {
+    // Dots then thin | thick
+    const d1 = y + UNIT.staffLine * 1.5;
+    const d2 = y + UNIT.staffLine * 2.5;
+    return (
+      <g>
+        <circle cx={x - 16} cy={d1} r={2.8} fill="#000" />
+        <circle cx={x - 16} cy={d2} r={2.8} fill="#000" />
+        <line x1={x - 7} x2={x - 7} y1={y} y2={y + height} stroke="#000" strokeWidth={1.4} />
+        <line x1={x} x2={x} y1={y} y2={y + height} stroke="#000" strokeWidth={4} />
       </g>
     );
   }
@@ -207,11 +243,27 @@ function ChordSymbols({ measure, staffTop }: { measure: LaidMeasure; staffTop: n
 
 function MarkerRow({ measure, staffTop }: { measure: LaidMeasure; staffTop: number }) {
   const m = measure.measure;
-  if (m.markers.length === 0) return null;
+  // repeat-start is drawn as a barline; only show text for other markers (incl. ×N on repeat-end)
+  const visible = m.markers.filter((mk) => mk.kind !== "repeat-start");
+  if (visible.length === 0) return null;
   const y = staffTop - UNIT.chordRow - 8;
   return (
     <g fontFamily={SERIF} fontStyle="italic" fontSize={UNIT.fontMarker} fill="#000">
-      {m.markers.map((mk, i) => {
+      {visible.map((mk, i) => {
+        if (mk.kind === "repeat-end") {
+          return (
+            <text
+              key={i}
+              x={measure.x + measure.width - 8}
+              y={y}
+              textAnchor="end"
+              fontStyle="normal"
+              fontWeight={700}
+            >
+              {mk.text ?? "×2"}
+            </text>
+          );
+        }
         const label =
           mk.text ??
           (mk.kind === "coda"
@@ -220,7 +272,9 @@ function MarkerRow({ measure, staffTop }: { measure: LaidMeasure; staffTop: numb
               ? "\u{1D10B}"
               : mk.kind === "fermata"
                 ? "\u{1D110}"
-                : mk.kind);
+                : mk.kind === "repeat-count"
+                  ? mk.text
+                  : mk.kind);
         return (
           <text key={i} x={measure.x + 4 + i * 60} y={y}>
             {label}
@@ -229,6 +283,44 @@ function MarkerRow({ measure, staffTop }: { measure: LaidMeasure; staffTop: numb
       })}
     </g>
   );
+}
+
+/** Band notes above the staff (italic) — nav tokens already lifted to markers. */
+function SectionNotes({
+  notes,
+  x,
+  staffTop,
+}: {
+  notes: string;
+  x: number;
+  staffTop: number;
+}) {
+  const cleaned = notes
+    .replace(/\b(D\.C\.|D\.S\.|Fine|To\s*Coda|Coda|Segno|Fermata)\b/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  if (!cleaned) return null;
+  return (
+    <text
+      x={x}
+      y={staffTop - UNIT.chordRow - UNIT.markerRow + 18}
+      fontFamily={SERIF}
+      fontStyle="italic"
+      fontSize={UNIT.fontNotes}
+      fill="#000"
+    >
+      {cleaned}
+    </text>
+  );
+}
+
+function hasMarker(m: LaidMeasure, kind: string): boolean {
+  return m.measure.markers.some((mk) => mk.kind === kind);
+}
+
+function firstMeasureHasRepeatStart(sys: System): boolean {
+  const first = sys.measures[0];
+  return !!first?.measure.markers.some((mk) => mk.kind === "repeat-start");
 }
 
 function MeasureNumber({ measure, staffTop, forceShow }: { measure: LaidMeasure; staffTop: number; forceShow: boolean }) {
@@ -309,10 +401,17 @@ function SystemBlock({
   const measuresWidth = sys.contentWidth;
 
   // Section label + barline start
+  const openKind: "single" | "repeat-start" =
+    sys.isSectionStart && firstMeasureHasRepeatStart(sys) ? "repeat-start" : "single";
+
   return (
     <g>
       {sys.isSectionStart && (
         <SectionLabel x={labelX} y={staffTop} label={sys.sectionLabel} />
+      )}
+
+      {sys.isSectionStart && sys.sectionNotes && (
+        <SectionNotes notes={sys.sectionNotes} x={clefX} staffTop={staffTop} />
       )}
 
       <StaffLines x={clefX} y={staffTop} w={measuresStartX + measuresWidth - clefX} />
@@ -321,7 +420,7 @@ function SystemBlock({
       {showTimeSig && <TimeSignature x={timeX} y={staffTop} ts={score.header.timeSig} />}
 
       {/* Opening barline */}
-      <Barline x={measuresStartX} y={staffTop} height={UNIT.staffHeight} kind="single" />
+      <Barline x={measuresStartX} y={staffTop} height={UNIT.staffHeight} kind={openKind} />
 
       {sys.measures.map((lm, i) => {
         const shifted: LaidMeasure = {
@@ -330,11 +429,14 @@ function SystemBlock({
           beatX: lm.beatX.map((bx) => measuresStartX + bx),
         };
         const isLastOfPiece = shifted.measure.number === totalMeasures;
-        const barlineKind: "single" | "final" | "section" = isLastOfPiece
-          ? "final"
-          : shifted.measure.endsSection
-            ? "section"
-            : "single";
+        const endsRepeat = hasMarker(shifted, "repeat-end");
+        const barlineKind: "single" | "final" | "section" | "repeat-end" = endsRepeat
+          ? "repeat-end"
+          : isLastOfPiece
+            ? "final"
+            : shifted.measure.endsSection
+              ? "section"
+              : "single";
         const barX = shifted.x + shifted.width;
         return (
           <g key={i}>
