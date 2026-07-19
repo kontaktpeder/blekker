@@ -26,7 +26,7 @@ export const getSetlist = createServerFn({ method: "GET" })
     const { data: items, error: itemsErr } = await supabaseAdmin
       .from("setlist_songs")
       .select(
-        "id, position, arrangement_id, arrangements(id, current_key, song_id, songs(id, title, artist, bpm))",
+        "id, position, arrangement_id, arrangements(id, current_key, song_id, songs(id, title, artist, bpm, original_key, capo))",
       )
       .eq("setlist_id", data.id)
       .order("position", { ascending: true });

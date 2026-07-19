@@ -11,6 +11,8 @@ import {
   Download,
   Pencil,
   Check,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { transposeKey, type Section, type Song } from "@/lib/music";
 import { Button } from "@/components/ui/button";
@@ -33,12 +35,32 @@ const MODES: { id: ViewMode; label: string }[] = [
   { id: "live", label: "Live" },
 ];
 
+/** Compact row used for setlist live navigation HUD. */
+export type SetlistLiveItem = {
+  id: string;
+  title: string;
+  artist: string;
+  key: string;
+  bpm: number;
+  capo?: number;
+};
+
+export type SetlistLiveProps = {
+  items: SetlistLiveItem[];
+  index: number;
+  onGoTo: (index: number) => void;
+  onExitLive?: () => void;
+};
+
 interface Props {
   song: Song;
+  /** Open directly in Live (setlist session). */
+  initialMode?: ViewMode;
+  setlistLive?: SetlistLiveProps;
 }
 
-export function SongChart({ song }: Props) {
-  const [mode, setMode] = useState<ViewMode>("full");
+export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
+  const [mode, setMode] = useState<ViewMode>(initialMode);
   const [semitones, setSemitones] = useState(0);
   const [showLyrics, setShowLyrics] = useState(true);
   const [scrollSpeed, setScrollSpeed] = useState(0);
@@ -47,12 +69,26 @@ export function SongChart({ song }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Song>(song);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const transposeBySong = useRef<Record<string, number>>({});
   const updateSong = useUpdateSong();
 
   useEffect(() => {
     setDraft(song);
     setEditing(false);
+    setSemitones(transposeBySong.current[song.id] ?? 0);
+    setScrollSpeed(0);
+    requestAnimationFrame(() => {
+      if (scrollRef.current) scrollRef.current.scrollTop = 0;
+    });
   }, [song.id]);
+
+  useEffect(() => {
+    transposeBySong.current[song.id] = semitones;
+  }, [song.id, semitones]);
+
+  useEffect(() => {
+    if (initialMode === "live") setMode("live");
+  }, [initialMode]);
 
   const working = editing ? draft : song;
   const play = useMemo(() => resolvePlayOrder(working), [working]);
@@ -64,6 +100,50 @@ export function SongChart({ song }: Props) {
   const showNotes = mode === "full" || mode === "live";
   const lyricsOn = showLyrics && (mode === "full" || mode === "live");
   const canEdit = mode === "full" && editing;
+
+  const setlistIdx = setlistLive?.index ?? -1;
+  const setlistLen = setlistLive?.items.length ?? 0;
+  const hasSetlist = !!setlistLive && setlistLen > 0;
+  const prevItem = hasSetlist && setlistIdx > 0 ? setlistLive!.items[setlistIdx - 1] : null;
+  const nextItem =
+    hasSetlist && setlistIdx >= 0 && setlistIdx < setlistLen - 1
+      ? setlistLive!.items[setlistIdx + 1]
+      : null;
+
+  function goSetlist(dir: -1 | 1) {
+    if (!setlistLive) return;
+    const next = setlistLive.index + dir;
+    if (next < 0 || next >= setlistLive.items.length) return;
+    setlistLive.onGoTo(next);
+  }
+
+  function exitLive() {
+    setMode("full");
+    setlistLive?.onExitLive?.();
+  }
+
+  useEffect(() => {
+    if (!isLive || !hasSetlist || !setlistLive) return;
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (e.key === "ArrowRight" || e.key === "n" || e.key === "N") {
+        e.preventDefault();
+        const next = setlistLive.index + 1;
+        if (next < setlistLive.items.length) setlistLive.onGoTo(next);
+      } else if (e.key === "ArrowLeft" || e.key === "p" || e.key === "P") {
+        e.preventDefault();
+        const prev = setlistLive.index - 1;
+        if (prev >= 0) setlistLive.onGoTo(prev);
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        setMode("full");
+        setlistLive.onExitLive?.();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isLive, hasSetlist, setlistLive]);
 
   useEffect(() => {
     if (!isLive || scrollSpeed === 0) return;
@@ -380,7 +460,8 @@ export function SongChart({ song }: Props) {
                 onClick={() => setMode("live")}
                 className="font-mono uppercase tracking-wider text-xs"
               >
-                <Maximize2 className="h-4 w-4 mr-1" /> Live
+                <Maximize2 className="h-4 w-4 mr-1" />
+                {hasSetlist ? "Start Live" : "Live"}
               </Button>
             </div>
           </div>
@@ -388,74 +469,138 @@ export function SongChart({ song }: Props) {
       )}
 
       {isLive && (
-        <div className="absolute top-4 right-4 z-10 flex flex-wrap items-center justify-end gap-2 rounded-lg border border-border bg-background/80 backdrop-blur-md px-3 py-2 font-mono max-w-[calc(100%-2rem)]">
-          <div className="flex items-center gap-3 px-2 tabular-nums text-sm">
-            <span>
-              <span className="text-muted-foreground text-[10px] tracking-[0.2em] mr-1">KEY</span>
-              {displayKey}
-            </span>
-            <span>
-              <span className="text-muted-foreground text-[10px] tracking-[0.2em] mr-1">BPM</span>
-              {working.bpm}
-            </span>
-          </div>
-          <div className="flex items-center border-l border-border pl-2">
-            <button
-              onClick={() => setSemitones((s) => s - 1)}
-              className="p-1.5 hover:bg-accent rounded"
-              aria-label="Transpose down"
-            >
-              <Minus className="h-4 w-4" />
-            </button>
-            <div className="px-2 text-xs tabular-nums w-12 text-center">
-              {semitones === 0 ? "±0" : semitones > 0 ? `+${semitones}` : semitones}
+        <>
+          {/* Top-left: setlist now / next HUD */}
+          {hasSetlist && (
+            <div className="absolute top-4 left-4 z-10 max-w-[min(28rem,calc(100%-12rem))] rounded-lg border border-border bg-background/85 backdrop-blur-md px-3 py-2.5 font-mono">
+              <p className="text-[10px] tracking-[0.2em] text-muted-foreground uppercase">
+                Setlist {setlistIdx + 1}/{setlistLen}
+              </p>
+              <p className="mt-1 text-sm font-semibold text-foreground truncate">
+                {working.title}
+              </p>
+              <p className="text-[11px] text-muted-foreground tabular-nums truncate">
+                {displayKey} · {working.bpm} BPM
+                {working.capo ? ` · capo ${working.capo}` : ""}
+              </p>
+              {nextItem && (
+                <p className="mt-2 pt-2 border-t border-border/60 text-[11px] text-muted-foreground truncate">
+                  <span className="tracking-[0.15em] uppercase mr-1.5">Neste</span>
+                  {nextItem.title}
+                  <span className="opacity-70">
+                    {" "}
+                    · {nextItem.key} · {nextItem.bpm}
+                  </span>
+                </p>
+              )}
+            </div>
+          )}
+
+          <div className="absolute top-4 right-4 z-10 flex flex-wrap items-center justify-end gap-2 rounded-lg border border-border bg-background/80 backdrop-blur-md px-3 py-2 font-mono max-w-[calc(100%-2rem)]">
+            <div className="flex items-center gap-3 px-2 tabular-nums text-sm">
+              <span>
+                <span className="text-muted-foreground text-[10px] tracking-[0.2em] mr-1">KEY</span>
+                {displayKey}
+              </span>
+              <span>
+                <span className="text-muted-foreground text-[10px] tracking-[0.2em] mr-1">BPM</span>
+                {working.bpm}
+              </span>
+            </div>
+            <div className="flex items-center border-l border-border pl-2">
+              <button
+                onClick={() => setSemitones((s) => s - 1)}
+                className="p-1.5 hover:bg-accent rounded"
+                aria-label="Transpose down"
+              >
+                <Minus className="h-4 w-4" />
+              </button>
+              <div className="px-2 text-xs tabular-nums w-12 text-center">
+                {semitones === 0 ? "±0" : semitones > 0 ? `+${semitones}` : semitones}
+              </div>
+              <button
+                onClick={() => setSemitones((s) => s + 1)}
+                className="p-1.5 hover:bg-accent rounded"
+                aria-label="Transpose up"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
             </div>
             <button
-              onClick={() => setSemitones((s) => s + 1)}
-              className="p-1.5 hover:bg-accent rounded"
-              aria-label="Transpose up"
+              onClick={() => setScrollSpeed((s) => (s + 1) % 4)}
+              className="flex items-center gap-1 px-2 py-1.5 hover:bg-accent rounded border-l border-border ml-1"
+              aria-label="Autoscroll speed"
+              title="Autoscroll"
             >
-              <Plus className="h-4 w-4" />
+              {scrollSpeed === 0 ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+              <span className="text-[10px] tracking-[0.15em] w-8 text-center">
+                {scrollSpeed === 0 ? "OFF" : scrollSpeed === 1 ? "SLOW" : scrollSpeed === 2 ? "MED" : "FAST"}
+              </span>
+            </button>
+            <button
+              onClick={() => setShowLyrics((v) => !v)}
+              className="p-1.5 hover:bg-accent rounded border-l border-border ml-1 pl-2"
+              aria-label="Toggle lyrics"
+            >
+              {showLyrics ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+            </button>
+            <button
+              onClick={() => setExportOpen(true)}
+              disabled={exporting}
+              className="p-1.5 hover:bg-accent rounded border-l border-border ml-1 pl-2 disabled:opacity-50"
+              aria-label="Last ned PDF"
+              title="Last ned PDF"
+            >
+              <Download className="h-4 w-4" />
+            </button>
+            <button
+              onClick={exitLive}
+              className="p-1.5 hover:bg-accent rounded border-l border-border ml-1 pl-2"
+              aria-label="Exit live"
+            >
+              <X className="h-4 w-4" />
             </button>
           </div>
-          <button
-            onClick={() => setScrollSpeed((s) => (s + 1) % 4)}
-            className="flex items-center gap-1 px-2 py-1.5 hover:bg-accent rounded border-l border-border ml-1"
-            aria-label="Autoscroll speed"
-            title="Autoscroll"
-          >
-            {scrollSpeed === 0 ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
-            <span className="text-[10px] tracking-[0.15em] w-8 text-center">
-              {scrollSpeed === 0 ? "OFF" : scrollSpeed === 1 ? "SLOW" : scrollSpeed === 2 ? "MED" : "FAST"}
-            </span>
-          </button>
-          <button
-            onClick={() => setShowLyrics((v) => !v)}
-            className="p-1.5 hover:bg-accent rounded border-l border-border ml-1 pl-2"
-            aria-label="Toggle lyrics"
-          >
-            {showLyrics ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-          </button>
-          <button
-            onClick={() => setExportOpen(true)}
-            disabled={exporting}
-            className="p-1.5 hover:bg-accent rounded border-l border-border ml-1 pl-2 disabled:opacity-50"
-            aria-label="Last ned PDF"
-            title="Last ned PDF"
-          >
-            <Download className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => setMode("full")}
-            className="p-1.5 hover:bg-accent rounded border-l border-border ml-1 pl-2"
-            aria-label="Exit live"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+
+          {/* Bottom nav — big touch targets for stage */}
+          {hasSetlist && (
+            <div className="absolute bottom-4 left-1/2 z-10 -translate-x-1/2 flex items-center gap-2 rounded-xl border border-border bg-background/90 backdrop-blur-md p-2 shadow-lg max-w-[calc(100%-1.5rem)]">
+              <button
+                type="button"
+                onClick={() => goSetlist(-1)}
+                disabled={!prevItem}
+                className="flex items-center gap-1 rounded-lg px-4 py-3 min-h-12 min-w-[5.5rem] hover:bg-accent disabled:opacity-30 font-mono text-xs tracking-[0.12em] uppercase"
+                aria-label="Forrige låt"
+              >
+                <ChevronLeft className="h-5 w-5" />
+                Forrige
+              </button>
+              <div className="px-3 text-center font-mono tabular-nums text-sm min-w-[3.5rem]">
+                {setlistIdx + 1}
+                <span className="text-muted-foreground">/{setlistLen}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => goSetlist(1)}
+                disabled={!nextItem}
+                className="flex items-center gap-1 rounded-lg px-4 py-3 min-h-12 min-w-[5.5rem] hover:bg-accent disabled:opacity-30 font-mono text-xs tracking-[0.12em] uppercase"
+                aria-label="Neste låt"
+              >
+                Neste
+                <ChevronRight className="h-5 w-5" />
+              </button>
+            </div>
+          )}
+        </>
       )}
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-2 md:px-6 py-6">
+      <div
+        ref={scrollRef}
+        className={cn(
+          "flex-1 overflow-y-auto px-2 md:px-6 py-6",
+          isLive && hasSetlist && "pb-28",
+        )}
+      >
         {isLive && (
           <div className="mb-8">
             <h1 className="font-semibold tracking-tight leading-none text-balance text-4xl md:text-6xl">
