@@ -103,7 +103,7 @@
   }
 }
 
-/* Ultimate Guitar–style printable lyric sheet */
+/* Live lead sheet paper (PDF preview) — kept for export host if needed */
 .lyric-sheet--paper {
   background: #fff;
   color: #111;
@@ -114,19 +114,4 @@
 .lyric-sheet__body {
   font-family: "JetBrains Mono", ui-monospace, "Courier New", monospace;
   tab-size: 4;
-}
-
-/* Live lead sheet — same black-on-white engraving as PDF */
-.live-lead-bg {
-  background: #d8d8d8;
-}
-.live-lead-sheet [data-pdf-section] {
-  box-shadow:
-    0 1px 2px rgb(0 0 0 / 0.08),
-    0 10px 28px rgb(0 0 0 / 0.14);
-  margin-bottom: 20px !important;
-  border-radius: 1px;
-}
-.live-lead-sheet [data-pdf-section]:last-child {
-  margin-bottom: 0 !important;
 }
