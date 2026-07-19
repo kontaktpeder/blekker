@@ -1,8 +1,7 @@
 import { useMemo } from "react";
 import type { Song } from "@/lib/music";
 import { normalizeSong } from "@/lib/engraving/normalize";
-import { layoutScore } from "@/lib/engraving/layout";
-import { paginate, PAGE } from "@/lib/engraving/paginate";
+import { fitLeadSheetPages, PAGE } from "@/lib/engraving/paginate";
 import { LeadSheetSvg } from "@/lib/engraving/renderer/LeadSheetSvg";
 import { KEY_ACCIDENTALS } from "@/lib/engraving/renderer/glyphs";
 
@@ -13,9 +12,9 @@ interface Props {
 }
 
 // Mirror the renderer prefix so measure justification aligns with the drawn staff.
-const LABEL_W = 180;
-const CLEF_W = 90;
-const TIMESIG_W = 70;
+const LABEL_W = 170;
+const CLEF_W = 84;
+const TIMESIG_W = 56;
 const KEYSIG_STEP = 20;
 
 function systemContentWidth(keyName: string): number {
@@ -25,14 +24,25 @@ function systemContentWidth(keyName: string): number {
 }
 
 export function LeadSheetChart({ song, semitones, showLyrics }: Props) {
-  const { score, pages } = useMemo(() => {
+  const { score, pages, density } = useMemo(() => {
     const normalized = normalizeSong(song, semitones);
-    const systems = layoutScore(normalized, {
-      systemContentWidth: systemContentWidth(normalized.header.key),
-      maxMeasuresPerSystem: 4,
-    });
-    return { score: normalized, pages: paginate(normalized, systems) };
+    const fitted = fitLeadSheetPages(
+      normalized,
+      systemContentWidth(normalized.header.key),
+    );
+    return {
+      score: normalized,
+      pages: fitted.pages,
+      density: fitted.density,
+    };
   }, [song, semitones]);
 
-  return <LeadSheetSvg score={score} pages={pages} showLyrics={showLyrics} />;
+  return (
+    <LeadSheetSvg
+      score={score}
+      pages={pages}
+      showLyrics={showLyrics}
+      density={density}
+    />
+  );
 }

@@ -1,6 +1,6 @@
 import type { NormalizedScore } from "../model";
-import type { PositionedSystem, Page } from "../paginate";
-import { PAGE } from "../paginate";
+import type { PositionedSystem, Page, DensityPreset } from "../paginate";
+import { PAGE, DENSITY_PRESETS } from "../paginate";
 import type { LaidMeasure, System } from "../layout";
 import { UNIT, SERIF } from "./typography";
 import { KEY_ACCIDENTALS } from "./glyphs";
@@ -9,13 +9,14 @@ interface Props {
   score: NormalizedScore;
   pages: Page[];
   showLyrics: boolean;
+  density?: DensityPreset;
 }
 
-/* --- Musical prefix widths ------------------------------------------------ */
-const LABEL_W = 180;
-const CLEF_W = 90;
+/* --- Musical prefix widths (must match LeadSheetChart) ------------------- */
+const LABEL_W = 170;
+const CLEF_W = 84;
 const KEYSIG_STEP = 20;
-const TIMESIG_W = 70;
+const TIMESIG_W = 56;
 
 function keySigWidth(key: string): number {
   const info = KEY_ACCIDENTALS[key];
@@ -45,13 +46,13 @@ function StaffLines({ x, y, w }: { x: number; y: number; w: number }) {
 
 function TrebleClef({ x, y }: { x: number; y: number }) {
   // Y is the staff top. Clef sits centered on the G-line (2nd from bottom).
-  const cy = y + UNIT.staffLine * 3; // 4th line from top = G line
+  const cy = y + UNIT.staffLine * 3;
   return (
     <text
       x={x}
-      y={cy + 22}
+      y={cy + 18}
       fontFamily="'Bravura Text','Noto Music','Segoe UI Symbol','Apple Symbols',serif"
-      fontSize={90}
+      fontSize={78}
       fill="#000"
     >
       {"\u{1D11E}"}
@@ -87,10 +88,18 @@ function KeySignature({ x, y, keyName }: { x: number; y: number; keyName: string
 
 function TimeSignature({ x, y, ts }: { x: number; y: number; ts: string }) {
   const [num, den] = ts.split("/");
+  const cx = x + TIMESIG_W / 2;
+  const fs = UNIT.fontTimeSig;
+  // Digits centered in upper / lower staff halves (staff height = 4×staffLine).
+  // Baselines chosen so Georgia bold stays inside the five lines when rasterized.
   return (
-    <g fontFamily={SERIF} fontWeight={700} fontSize={34} fill="#000" textAnchor="middle">
-      <text x={x + TIMESIG_W / 2} y={y + UNIT.staffLine * 2 + 4}>{num}</text>
-      <text x={x + TIMESIG_W / 2} y={y + UNIT.staffLine * 4 + 4}>{den ?? "4"}</text>
+    <g fontFamily={SERIF} fontWeight={700} fontSize={fs} fill="#000" textAnchor="middle">
+      <text x={cx} y={y + UNIT.staffLine * 2 - 2}>
+        {num}
+      </text>
+      <text x={cx} y={y + UNIT.staffLine * 4 - 2}>
+        {den ?? "4"}
+      </text>
     </g>
   );
 }
@@ -281,10 +290,10 @@ function ChordSymbols({ measure, staffTop }: { measure: LaidMeasure; staffTop: n
 
 function MarkerRow({ measure, staffTop }: { measure: LaidMeasure; staffTop: number }) {
   const m = measure.measure;
-  // repeat-start is drawn as a barline; only show text for other markers (incl. ×N on repeat-end)
   const visible = m.markers.filter((mk) => mk.kind !== "repeat-start");
   if (visible.length === 0) return null;
-  const y = staffTop - UNIT.chordRow - 8;
+  // Sit just above chord symbols
+  const y = staffTop - UNIT.chordRow + 14;
   return (
     <g fontFamily={SERIF} fontStyle="italic" fontSize={UNIT.fontMarker} fill="#000">
       {visible.map((mk, i) => {
@@ -323,32 +332,54 @@ function MarkerRow({ measure, staffTop }: { measure: LaidMeasure; staffTop: numb
   );
 }
 
-/** Band notes above the staff (italic) — nav tokens already lifted to markers. */
+/** Band notes above the staff — larger, clearer, wrapped if long. */
 function SectionNotes({
   notes,
   x,
   staffTop,
+  maxWidth,
 }: {
   notes: string;
   x: number;
   staffTop: number;
+  maxWidth: number;
 }) {
   const cleaned = notes
     .replace(/\b(D\.C\.|D\.S\.|Fine|To\s*Coda|Coda|Segno|Fermata)\b/gi, "")
     .replace(/\s{2,}/g, " ")
     .trim();
   if (!cleaned) return null;
+
+  const maxChars = Math.max(28, Math.floor(maxWidth / (UNIT.fontNotes * 0.48)));
+  const lines: string[] = [];
+  let cur = "";
+  for (const wd of cleaned.split(/\s+/)) {
+    const next = cur ? `${cur} ${wd}` : wd;
+    if (next.length > maxChars && cur) {
+      lines.push(cur);
+      cur = wd;
+      if (lines.length >= 2) {
+        lines.push(wd.length > maxChars ? `${wd.slice(0, maxChars - 1)}…` : wd);
+        cur = "";
+        break;
+      }
+    } else {
+      cur = next;
+    }
+  }
+  if (cur) lines.push(cur);
+
+  const lineH = UNIT.fontNotes * 1.2;
+  const baseY = staffTop - UNIT.chordRow - 8 - (lines.length - 1) * lineH;
+
   return (
-    <text
-      x={x}
-      y={staffTop - UNIT.chordRow - UNIT.markerRow + 18}
-      fontFamily={SERIF}
-      fontStyle="italic"
-      fontSize={UNIT.fontNotes}
-      fill="#000"
-    >
-      {cleaned}
-    </text>
+    <g fontFamily={SERIF} fontStyle="italic" fontSize={UNIT.fontNotes} fill="#000">
+      {lines.slice(0, 2).map((line, i) => (
+        <text key={i} x={x} y={baseY + i * lineH} fontWeight={500}>
+          {line}
+        </text>
+      ))}
+    </g>
   );
 }
 
@@ -361,32 +392,50 @@ function firstMeasureHasRepeatStart(sys: System): boolean {
   return !!first?.measure.markers.some((mk) => mk.kind === "repeat-start");
 }
 
-function MeasureNumber({ measure, staffTop, forceShow }: { measure: LaidMeasure; staffTop: number; forceShow: boolean }) {
+function MeasureNumber({
+  measure,
+  staffTop,
+  forceShow,
+}: {
+  measure: LaidMeasure;
+  staffTop: number;
+  forceShow: boolean;
+}) {
   const n = measure.measure.number;
   if (!forceShow && n % 4 !== 1) return null;
   return (
     <text
       x={measure.x + 4}
-      y={staffTop - UNIT.chordRow - UNIT.markerRow - 4}
+      y={staffTop - 22}
       fontFamily={SERIF}
       fontSize={UNIT.fontMeasureNo}
-      fill="#000"
+      fill="#444"
     >
       {n}
     </text>
   );
 }
 
-function LyricLine({ system, staffTop, lyrics }: { system: System; staffTop: number; lyrics: string }) {
+function LyricLine({
+  system,
+  staffTop,
+  lyrics,
+  lyricGapScale,
+}: {
+  system: System;
+  staffTop: number;
+  lyrics: string;
+  lyricGapScale: number;
+}) {
   if (!lyrics) return null;
-  const y = staffTop + UNIT.staffHeight + UNIT.lyricGap;
+  const gap = UNIT.lyricGap * lyricGapScale;
+  const y = staffTop + UNIT.staffHeight + gap;
   const startX = system.measures[0]?.x ?? 0;
   const w = system.contentWidth;
-  // Simple word-wrap by character count (heuristic — no font metrics available
-  // during SVG-to-canvas rasterization). ~54 chars fits per system width.
   const lines: string[] = [];
   const rawLines = lyrics.split(/\n/);
-  const maxChars = Math.max(20, Math.floor(w / (UNIT.fontLyric * 0.55)));
+  const fontSize = UNIT.fontLyric * Math.max(0.85, lyricGapScale);
+  const maxChars = Math.max(20, Math.floor(w / (fontSize * 0.55)));
   for (const raw of rawLines) {
     const words = raw.split(/\s+/);
     let cur = "";
@@ -401,9 +450,9 @@ function LyricLine({ system, staffTop, lyrics }: { system: System; staffTop: num
     if (cur) lines.push(cur);
   }
   return (
-    <g fontFamily={SERIF} fontStyle="italic" fontSize={UNIT.fontLyric} fill="#000">
+    <g fontFamily={SERIF} fontStyle="italic" fontSize={fontSize} fill="#000">
       {lines.map((line, i) => (
-        <text key={i} x={startX} y={y + i * (UNIT.fontLyric * 1.25)}>
+        <text key={i} x={startX} y={y + i * (fontSize * 1.22)}>
           {line}
         </text>
       ))}
@@ -418,27 +467,28 @@ function SystemBlock({
   showTimeSig,
   score,
   showLyrics,
+  density,
 }: {
   positioned: PositionedSystem;
   totalMeasures: number;
   showTimeSig: boolean;
   score: NormalizedScore;
   showLyrics: boolean;
+  density: DensityPreset;
 }) {
   const sys = positioned.system;
   const originX = positioned.x;
-  const staffTop = positioned.y + UNIT.markerRow + UNIT.chordRow;
+  const notesPad = sys.sectionNotes?.trim() ? UNIT.notesRow : 0;
+  const staffTop = positioned.y + notesPad + UNIT.chordRow;
 
-  // Prefix positions inside the system:
   const labelX = originX;
   const clefX = originX + LABEL_W;
   const keyX = clefX + CLEF_W;
   const kw = keySigWidth(score.header.key);
   const timeX = keyX + kw;
-  const measuresStartX = timeX + TIMESIG_W; // always reserve, keeps systems aligned
+  const measuresStartX = timeX + TIMESIG_W;
   const measuresWidth = sys.contentWidth;
 
-  // Section label + barline start
   const openKind: "single" | "repeat-start" =
     sys.isSectionStart && firstMeasureHasRepeatStart(sys) ? "repeat-start" : "single";
 
@@ -449,15 +499,19 @@ function SystemBlock({
       )}
 
       {sys.isSectionStart && sys.sectionNotes && (
-        <SectionNotes notes={sys.sectionNotes} x={clefX} staffTop={staffTop} />
+        <SectionNotes
+          notes={sys.sectionNotes}
+          x={measuresStartX}
+          staffTop={staffTop}
+          maxWidth={measuresWidth}
+        />
       )}
 
       <StaffLines x={clefX} y={staffTop} w={measuresStartX + measuresWidth - clefX} />
-      <TrebleClef x={clefX + 8} y={staffTop} />
+      <TrebleClef x={clefX + 6} y={staffTop} />
       <KeySignature x={keyX} y={staffTop} keyName={score.header.key} />
       {showTimeSig && <TimeSignature x={timeX} y={staffTop} ts={score.header.timeSig} />}
 
-      {/* Opening barline */}
       <Barline x={measuresStartX} y={staffTop} height={UNIT.staffHeight} kind={openKind} />
 
       {sys.measures.map((lm, i) => {
@@ -499,6 +553,7 @@ function SystemBlock({
           }}
           staffTop={staffTop}
           lyrics={sys.sectionLyrics}
+          lyricGapScale={density.lyricGapScale}
         />
       )}
     </g>
@@ -506,9 +561,10 @@ function SystemBlock({
 }
 
 /* --- Header block -------------------------------------------------------- */
-function Header({ score }: { score: NormalizedScore }) {
+function Header({ score, density }: { score: NormalizedScore; density: DensityPreset }) {
   const h = score.header;
   const cx = PAGE.width / 2;
+  const top = density.marginTop;
   const meta = [
     `Key: ${h.key}`,
     `${h.bpm} BPM`,
@@ -522,7 +578,7 @@ function Header({ score }: { score: NormalizedScore }) {
     <g>
       <text
         x={cx}
-        y={PAGE.marginTop + 60}
+        y={top + 52}
         textAnchor="middle"
         fontFamily={SERIF}
         fontSize={UNIT.fontTitle}
@@ -534,7 +590,7 @@ function Header({ score }: { score: NormalizedScore }) {
       {h.artist && (
         <text
           x={PAGE.width - PAGE.marginX}
-          y={PAGE.marginTop + 20}
+          y={top + 18}
           textAnchor="end"
           fontFamily={SERIF}
           fontStyle="italic"
@@ -546,7 +602,7 @@ function Header({ score }: { score: NormalizedScore }) {
       )}
       <text
         x={cx}
-        y={PAGE.marginTop + 110}
+        y={top + 96}
         textAnchor="middle"
         fontFamily={SERIF}
         fontSize={UNIT.fontMeta}
@@ -557,8 +613,8 @@ function Header({ score }: { score: NormalizedScore }) {
       <line
         x1={PAGE.marginX}
         x2={PAGE.width - PAGE.marginX}
-        y1={PAGE.marginTop + 150}
-        y2={PAGE.marginTop + 150}
+        y1={top + density.headerHeight - 36}
+        y2={top + density.headerHeight - 36}
         stroke="#000"
         strokeWidth={1}
       />
@@ -567,48 +623,50 @@ function Header({ score }: { score: NormalizedScore }) {
 }
 
 /* --- Page ---------------------------------------------------------------- */
-export function LeadSheetSvg({ score, pages, showLyrics }: Props) {
+export function LeadSheetSvg({
+  score,
+  pages,
+  showLyrics,
+  density = DENSITY_PRESETS[0],
+}: Props) {
   return (
     <div style={{ background: "#fff" }}>
-      {pages.map((page) => {
-        // The first system of each section on this page shows time signature.
-        const seenSection = new Set<string>();
-        return (
-          <div
-            key={page.index}
-            data-pdf-section
-            style={{
-              width: `${PAGE.width / 10}mm`,
-              background: "#fff",
-              marginBottom: 24,
-            }}
+      {pages.map((page) => (
+        <div
+          key={page.index}
+          data-pdf-section
+          style={{
+            width: `${PAGE.width / 10}mm`,
+            background: "#fff",
+            marginBottom: 24,
+          }}
+        >
+          <svg
+            viewBox={`0 0 ${PAGE.width} ${PAGE.height}`}
+            width="100%"
+            xmlns="http://www.w3.org/2000/svg"
+            style={{ display: "block", background: "#fff" }}
           >
-            <svg
-              viewBox={`0 0 ${PAGE.width} ${PAGE.height}`}
-              width="100%"
-              xmlns="http://www.w3.org/2000/svg"
-              style={{ display: "block", background: "#fff" }}
-            >
-              <rect x={0} y={0} width={PAGE.width} height={PAGE.height} fill="#fff" />
-              {page.showHeader && <Header score={score} />}
-              {page.systems.map((ps, i) => {
-                const firstOfSection = !seenSection.has(ps.system.sectionId);
-                seenSection.add(ps.system.sectionId);
-                return (
-                  <SystemBlock
-                    key={i}
-                    positioned={ps}
-                    totalMeasures={score.totalMeasures}
-                    showTimeSig={firstOfSection}
-                    score={score}
-                    showLyrics={showLyrics}
-                  />
-                );
-              })}
-            </svg>
-          </div>
-        );
-      })}
+            <rect x={0} y={0} width={PAGE.width} height={PAGE.height} fill="#fff" />
+            {page.showHeader && <Header score={score} density={density} />}
+            {page.systems.map((ps, i) => {
+              // Time signature only at the very start of the piece (bar 1).
+              const showTimeSig = ps.system.measures[0]?.measure.number === 1;
+              return (
+                <SystemBlock
+                  key={i}
+                  positioned={ps}
+                  totalMeasures={score.totalMeasures}
+                  showTimeSig={showTimeSig}
+                  score={score}
+                  showLyrics={showLyrics}
+                  density={density}
+                />
+              );
+            })}
+          </svg>
+        </div>
+      ))}
     </div>
   );
 }
