@@ -360,7 +360,7 @@ function MarkerRow({ measure, staffTop }: { measure: LaidMeasure; staffTop: numb
   );
 }
 
-/** Band notes above the staff — Norwegian musician speak. */
+/** Band notes above the staff — already localized/transposed in normalize. */
 function SectionNotes({
   notes,
   x,
@@ -400,7 +400,8 @@ function SectionNotes({
   if (cur) lines.push(cur);
 
   const lineH = UNIT.fontNotes * 1.2;
-  const baseY = staffTop - UNIT.chordRow - 8 - (lines.length - 1) * lineH;
+  // Sit in the dedicated notes band above the chord row — not on measure numbers.
+  const baseY = staffTop - UNIT.chordRow - 14 - (lines.length - 1) * lineH;
 
   return (
     <g fontFamily={SERIF} fontStyle="italic" fontSize={UNIT.fontNotes} fill="#000">
@@ -426,18 +427,23 @@ function MeasureNumber({
   measure,
   staffTop,
   forceShow,
+  liftForNotes,
 }: {
   measure: LaidMeasure;
   staffTop: number;
   forceShow: boolean;
+  /** When band notes occupy the upper band, keep numbers just above chords. */
+  liftForNotes: boolean;
 }) {
   const n = measure.measure.number;
   if (!forceShow && n % 4 !== 1) return null;
-  // Sit well above the chord row so numbers never hide inside chord symbols.
+  // Default: above chord glyphs. With notes present, stay in the chord band
+  // so we never collide with SectionNotes.
+  const y = liftForNotes ? staffTop - 34 : staffTop - UNIT.chordRow - 12;
   return (
     <text
       x={measure.x + 2}
-      y={staffTop - UNIT.chordRow - 12}
+      y={y}
       fontFamily={SERIF}
       fontSize={UNIT.fontMeasureNo}
       fontWeight={600}
@@ -504,7 +510,8 @@ function SystemBlock({
 }) {
   const sys = positioned.system;
   const originX = positioned.x;
-  const notesPad = sys.sectionNotes?.trim() ? UNIT.notesRow : 0;
+  const hasNotes = !!sys.sectionNotes?.trim();
+  const notesPad = hasNotes ? UNIT.notesRow + 18 : 0;
   const staffTop = positioned.y + notesPad + UNIT.chordRow;
 
   const labelX = originX;
@@ -558,7 +565,12 @@ function SystemBlock({
         const barX = shifted.x + shifted.width;
         return (
           <g key={i}>
-            <MeasureNumber measure={shifted} staffTop={staffTop} forceShow={i === 0} />
+            <MeasureNumber
+              measure={shifted}
+              staffTop={staffTop}
+              forceShow={i === 0}
+              liftForNotes={hasNotes}
+            />
             <MarkerRow measure={shifted} staffTop={staffTop} />
             <ChordSymbols measure={shifted} staffTop={staffTop} />
             <Slashes measure={shifted} x={shifted.x} w={shifted.width} staffY={staffTop} />

@@ -220,8 +220,8 @@ CRITICAL FORM FIDELITY (Ultimate Guitar / chords-over-words):
 - Different verses keep different lyrics. Key-change choruses keep the later chords — do not merge with the earlier chorus.
 - Prefer expanding the form over using repeat>1.
 - EVERY section that has chords/lyrics in the source MUST have those chords/lyrics in JSON — never emit empty "-" bars for a section that is written out in the paste.
-- Section "name" values MUST be Norwegian rehearsal marks: Intro, Vers 1, Pre-refreng, Refreng, Brygge, Mellomspill, Stikk, Solo, Outro — NOT Swedish (VERS/REFRÄNG/BRYGGA/MELLANSPEL) and NOT required to stay English. Song lyrics stay in the source language (Swedish/English/…).
-- Band "notes" MUST be Norwegian musician speak (e.g. "Stem et halvtonetrinn ned (Eb)"), never leave Swedish instructional prose.
+- Section "name" values MUST be Norwegian rehearsal marks: Intro, Vers 1, Pre-refreng, Refreng, Bro, Mellomspill, Solo, Outro — use Bro for bridge/stick (never Brygge/Stikk/BRYGGA). Song lyrics stay in the source language (Swedish/English/…).
+- Band "notes" MUST be Norwegian musician speak (e.g. "Stem et halvtonetrinn ned (Eb)"), never leave Swedish instructional prose. Pitch/chord names inside notes will be transposed by the app.
 
 CRITICAL CHORD FIDELITY (walkdowns / multi-chord bars):
 - chords[] has ONE STRING PER BAR. If several chords share a bar (UG clusters like C then G/B then Am over a few syllables), put them in THAT bar as a space-separated string: "C G/B Am".

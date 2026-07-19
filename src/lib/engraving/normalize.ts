@@ -1,5 +1,6 @@
 import { transposeChord, transposeKey, type Song, type Section } from "@/lib/music";
 import { resolvePlayOrder } from "@/lib/ug-form";
+import { displayBandNotes } from "@/lib/band-notes-no";
 import type {
   ChordEvent,
   Measure,
@@ -110,7 +111,7 @@ function normalizeSection(
     id: section.id,
     label: section.name,
     repeat: section.repeat,
-    notes: section.notes,
+    notes: section.notes ? displayBandNotes(section.notes, semitones) : undefined,
     lyrics: section.lyrics,
     measures,
   };

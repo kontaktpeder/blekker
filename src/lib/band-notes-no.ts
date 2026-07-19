@@ -1,3 +1,5 @@
+import { transposeChord } from "./music";
+
 /**
  * Band performance notes → natural Norwegian musician speak.
  * Global for every chart — not song-specific.
@@ -207,4 +209,42 @@ export function localizeBandNotes(notes: string | null | undefined): string {
     .replace(/;\s*/g, " — ")
     .trim();
   return out;
+}
+
+/**
+ * Chord / pitch tokens that may appear in band notes or instrumentation cues.
+ * Deliberately requires a root; qualities and slash bass are optional.
+ */
+const CHORD_TOKEN_RE =
+  /\b([A-G](?:#|b|♯|♭)?(?:maj7|maj9|maj11|maj13|mmaj7|min7|min9|maj|min|dim|aug|sus2|sus4|sus|add9|add11|add2|add4|m7|m9|m11|m13|m6|m|6|7|9|11|13|2|4|5)?(?:\/[A-G](?:#|b|♯|♭)?)?)\b/g;
+
+function preferFlatsFromText(text: string): boolean {
+  const flats = (text.match(/[A-G]b/g) ?? []).length;
+  const sharps = (text.match(/[A-G]#/g) ?? []).length;
+  return flats > sharps;
+}
+
+/**
+ * Transpose pitch/chord mentions inside band notes when the chart is transposed.
+ * E.g. "Ending on F" / "Stem … (Eb)" follow the same semitone shift as the chords.
+ */
+export function transposeBandNotes(
+  notes: string | null | undefined,
+  semitones: number,
+): string {
+  if (!notes?.trim()) return "";
+  if (!semitones) return notes;
+  const preferFlats = preferFlatsFromText(notes);
+  return notes.replace(CHORD_TOKEN_RE, (raw) => {
+    const normalized = raw.replace(/♯/g, "#").replace(/♭/g, "b");
+    return transposeChord(normalized, semitones, preferFlats);
+  });
+}
+
+/** Localize then transpose — use for all on-screen / PDF band notes. */
+export function displayBandNotes(
+  notes: string | null | undefined,
+  semitones = 0,
+): string {
+  return transposeBandNotes(localizeBandNotes(notes), semitones);
 }

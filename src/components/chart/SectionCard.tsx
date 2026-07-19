@@ -1,5 +1,5 @@
 import { SECTION_COLOR, transposeChord, type Section } from "@/lib/music";
-import { localizeBandNotes } from "@/lib/band-notes-no";
+import { displayBandNotes } from "@/lib/band-notes-no";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -122,7 +122,7 @@ export function SectionCard({
               liveLg ? "text-lg md:text-xl" : "text-sm md:text-base",
             )}
           >
-            {localizeBandNotes(section.notes)}
+            {displayBandNotes(section.notes, semitones)}
           </p>
         ) : null
       )}

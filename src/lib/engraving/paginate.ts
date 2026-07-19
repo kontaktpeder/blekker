@@ -106,7 +106,7 @@ export function systemBlockHeight(
   density: DensityPreset = DENSITY_PRESETS[0],
 ): number {
   const lyricLines = countLyricLines(sys.sectionLyrics, sys.contentWidth);
-  const notesExtra = sys.sectionNotes?.trim() ? UNIT.notesRow + 12 : 0;
+  const notesExtra = sys.sectionNotes?.trim() ? UNIT.notesRow + 22 : 0;
   const lyricGap = UNIT.lyricGap * density.lyricGapScale;
   const lineH = UNIT.fontLyric * 1.2 * density.lyricGapScale;
   const lyricH = lyricLines > 0 ? lyricGap + lyricLines * lineH : 0;

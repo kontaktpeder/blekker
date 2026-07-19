@@ -10,8 +10,8 @@ export const UNIT = {
   staffHeight: 48,
   /** Chord label row height above the staff. */
   chordRow: 56,
-  /** Band-notes row above chords. */
-  notesRow: 44,
+  /** Band-notes row above chords (room for 2 lines without hitting measure #s). */
+  notesRow: 56,
   /** Space between staff bottom and first lyric baseline. */
   lyricGap: 48,
   /** Font sizes (px in SVG user units). */

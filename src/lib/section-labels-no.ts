@@ -68,10 +68,10 @@ const KIND_LABEL_NO: Record<SectionKind, string> = {
   verse: "Vers",
   prechorus: "Pre-refreng",
   chorus: "Refreng",
-  bridge: "Brygge",
+  bridge: "Bro",
   solo: "Solo",
   interlude: "Mellomspill",
-  stick: "Stikk",
+  stick: "Bro",
   outro: "Outro",
   other: "Del",
 };
@@ -125,7 +125,11 @@ export function sectionNamesCompatible(a: string, b: string): boolean {
     const compact = (s: string) => s.replace(/[\s-]+/g, "");
     return compact(na) === compact(nb) || na.startsWith(nb) || nb.startsWith(na);
   }
-  if (ka.kind !== kb.kind) return false;
+  if (ka.kind !== kb.kind) {
+    // Bridge family: bridge ↔ stick (both "Bro" on charts)
+    const bridgeFamily = (k: SectionKind) => k === "bridge" || k === "stick";
+    if (!(bridgeFamily(ka.kind) && bridgeFamily(kb.kind))) return false;
+  }
   if (ka.num != null && kb.num != null) return ka.num === kb.num;
   return true;
 }

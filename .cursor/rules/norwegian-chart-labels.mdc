@@ -7,7 +7,8 @@ alwaysApply: true
 
 Global for every import/render:
 
-- **Section labels** (Intro, Vers, Refreng, Brygge, Mellomspill, Stikk, …) are Norwegian — use `localizeSectionLabel` / `section-labels-no.ts`. Not Swedish (REFRÄNG/BRYGGA) on the chart chrome.
-- **Band notes** go through `localizeBandNotes` (EN/SV → NO). **Lyrics** stay in the song’s language.
-- Form expansion must match by **musical role** (`REFRÄNG` ↔ `Chorus` ↔ `Refreng`) via `sectionNamesCompatible` — never leave blank `-` bars when a contentful same-role section exists.
+- **Section labels** (Intro, Vers, Refreng, Bro, Mellomspill, …) are Norwegian — use `localizeSectionLabel` / `section-labels-no.ts`. Bridge and stick both display as **Bro** (never Brygge/Stikk). Not Swedish (REFRÄNG/BRYGGA) on the chart chrome.
+- **Band notes** go through `displayBandNotes` (localize + transpose pitch tokens with the chart). **Lyrics** stay in the song’s language.
+- Form expansion must match by **musical role** (`REFRÄNG` ↔ `Chorus` ↔ `Refreng`, bridge ↔ stick) via `sectionNamesCompatible` — never leave blank `-` bars when a contentful same-role section exists.
 - Empty placeholder sections are a last resort only.
+- Measure numbers must not overlap band notes (separate vertical bands in `LeadSheetSvg`).
