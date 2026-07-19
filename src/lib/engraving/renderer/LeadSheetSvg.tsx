@@ -95,25 +95,63 @@ function TimeSignature({ x, y, ts }: { x: number; y: number; ts: string }) {
   );
 }
 
+function wrapSectionLabel(label: string, maxWidth: number, fontSize: number): string[] {
+  const maxChars = Math.max(8, Math.floor(maxWidth / (fontSize * 0.52)));
+  if (label.length <= maxChars) return [label];
+
+  const words = label.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [label];
+
+  const lines: string[] = [];
+  let cur = "";
+  for (const w of words) {
+    const next = cur ? `${cur} ${w}` : w;
+    if (next.length > maxChars && cur) {
+      lines.push(cur);
+      cur = w;
+      if (lines.length === 2) {
+        // Dump remaining into line 2 with ellipsis if needed
+        const idx = words.indexOf(w);
+        const rest = words.slice(idx).join(" ");
+        const clipped =
+          rest.length > maxChars ? `${rest.slice(0, maxChars - 1)}…` : rest;
+        lines[1] = clipped;
+        return lines;
+      }
+    } else {
+      cur = next;
+    }
+  }
+  if (cur) lines.push(cur.length > maxChars ? `${cur.slice(0, maxChars - 1)}…` : cur);
+  return lines.slice(0, 2);
+}
+
 function SectionLabel({ x, y, label }: { x: number; y: number; label: string }) {
-  // Left-margin label. Uppercase, small caps look via bold serif + tracking.
+  const maxW = LABEL_W - 24;
+  const lines = wrapSectionLabel(label, maxW, UNIT.fontSection);
+  const lineH = UNIT.fontSection * 1.15;
+  // Sit above the staff in the left margin so staff lines never cut through the label.
+  const baseY = y - 10 - (lines.length - 1) * lineH;
   return (
     <g>
-      <text
-        x={x}
-        y={y + UNIT.staffLine * 2}
-        fontFamily={SERIF}
-        fontSize={UNIT.fontSection}
-        fontStyle="italic"
-        fill="#000"
-      >
-        {label}
-      </text>
+      {lines.map((line, i) => (
+        <text
+          key={i}
+          x={x}
+          y={baseY + i * lineH}
+          fontFamily={SERIF}
+          fontSize={UNIT.fontSection}
+          fontStyle="italic"
+          fill="#000"
+        >
+          {line}
+        </text>
+      ))}
       <line
         x1={x}
-        x2={x + LABEL_W - 20}
-        y1={y + UNIT.staffLine * 2 + 12}
-        y2={y + UNIT.staffLine * 2 + 12}
+        x2={x + maxW}
+        y1={baseY + (lines.length - 1) * lineH + 10}
+        y2={baseY + (lines.length - 1) * lineH + 10}
         stroke="#000"
         strokeWidth={1}
       />
@@ -226,7 +264,7 @@ function Barline({
 function ChordSymbols({ measure, staffTop }: { measure: LaidMeasure; staffTop: number }) {
   const m = measure.measure;
   if (m.chords.length === 0) return null;
-  const y = staffTop - 14;
+  const y = staffTop - 18;
   return (
     <g fontFamily={SERIF} fontWeight={700} fontSize={UNIT.fontChord} fill="#000">
       {m.chords.map((c, i) => {

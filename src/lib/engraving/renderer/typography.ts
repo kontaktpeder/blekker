@@ -7,21 +7,21 @@ export const UNIT = {
   /** Height of the 5-line staff (4 gaps × staffLine). */
   staffHeight: 48,
   /** Chord label row height above the staff. */
-  chordRow: 52,
+  chordRow: 56,
   /** Rehearsal / marker / section-notes row above chords. */
   markerRow: 44,
   /** Space between staff bottom and lyric baseline. */
-  lyricGap: 34,
+  lyricGap: 56,
   /** Font sizes (px in SVG user units). */
   fontTitle: 62,
   fontArtist: 26,
   fontMeta: 22,
-  fontChord: 28,
-  fontLyric: 20,
+  fontChord: 30,
+  fontLyric: 30,
   fontRehearsal: 26,
   fontMeasureNo: 18,
   fontMarker: 20,
-  fontSection: 28,
+  fontSection: 26,
   fontNotes: 18,
 } as const;
 

@@ -11,11 +11,11 @@ export const PAGE = {
   marginBottom: 110,
   headerHeight: 240, // title block, first page only
   sectionLabelWidth: 200,
-  systemGap: 72,
+  systemGap: 64,
   /** Base height: marker + chord + staff (+ a little breathing room). */
-  systemHeightNoLyrics: 200,
+  systemHeightNoLyrics: 210,
   /** Max lyric lines that affect reserved height (extra lines still draw). */
-  maxLyricLinesForHeight: 5,
+  maxLyricLinesForHeight: 6,
 } as const;
 
 export interface Page {
