@@ -22,6 +22,7 @@ import { ExportDialog } from "./ExportDialog";
 import type { ExportFormat, ExportLayout, LeadSheetVariant } from "@/lib/pdf/layouts";
 import { useUpdateSong } from "@/hooks/useSongs";
 import { toast } from "sonner";
+import { resolvePlayOrder } from "@/lib/ug-form";
 
 type ViewMode = "full" | "chart" | "form" | "live";
 
@@ -54,6 +55,7 @@ export function SongChart({ song }: Props) {
   }, [song.id]);
 
   const working = editing ? draft : song;
+  const play = useMemo(() => resolvePlayOrder(working), [working]);
   const displayKey = useMemo(
     () => transposeKey(working.key, semitones),
     [working.key, semitones],
@@ -123,7 +125,12 @@ export function SongChart({ song }: Props) {
     setExporting(true);
     const t = toast.loading(opts.format === "pdf" ? "Lager PDF…" : "Lager ark…");
     try {
-      await exportChartPdf({ song: working, semitones, showLyrics, ...opts });
+      await exportChartPdf({
+        song: { ...working, form: play.form, sections: play.sections },
+        semitones,
+        showLyrics,
+        ...opts,
+      });
       toast.success(opts.format === "pdf" ? "PDF klar" : "Ark klare", { id: t });
       setExportOpen(false);
     } catch (err) {
@@ -483,13 +490,13 @@ export function SongChart({ song }: Props) {
             >
               Form
             </p>
-            <FormStrip form={working.form} large={isLive} />
+            <FormStrip form={play.form} large={isLive} />
           </div>
         )}
 
         {mode === "form" ? null : (
           <div className={cn("grid gap-4", isLive ? "gap-6" : "md:gap-5")}>
-            {working.sections.map((s) => (
+            {play.sections.map((s) => (
               <SectionCard
                 key={s.id}
                 section={s}

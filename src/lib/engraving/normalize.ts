@@ -1,4 +1,5 @@
 import { transposeChord, transposeKey, type Song, type Section } from "@/lib/music";
+import { resolvePlayOrder } from "@/lib/ug-form";
 import type {
   ChordEvent,
   Measure,
@@ -135,9 +136,11 @@ function applyNavigationMarkers(sec: EngravedSection) {
 
 export function normalizeSong(song: Song, semitones: number): NormalizedScore {
   const beatsPerBar = beatsFromTimeSig(song.timeSig);
+  // Always follow play-order form so repeated UG sections are never dropped in PDF.
+  const { sections: ordered } = resolvePlayOrder(song);
   let bar = 1;
-  const sections: EngravedSection[] = song.sections.map((s, i) => {
-    const isFinal = i === song.sections.length - 1;
+  const sections: EngravedSection[] = ordered.map((s, i) => {
+    const isFinal = i === ordered.length - 1;
     const norm = normalizeSection(s, semitones, bar, beatsPerBar, isFinal);
     bar += norm.measures.length;
     applyNavigationMarkers(norm);

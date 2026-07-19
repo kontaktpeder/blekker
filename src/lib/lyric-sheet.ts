@@ -6,6 +6,7 @@ import {
 } from "chordsheetjs";
 import type { Song } from "./music";
 import { transposeChord } from "./music";
+import { resolvePlayOrder } from "./ug-form";
 
 const CHORD_TOKEN =
   /^[A-G][#b]?(?:m|maj|min|dim|aug|sus|add|maj7|m7|m9|m11|m13|9|11|13|6|7|2|4|5)*(?:\/[A-G][#b]?)?$/;
@@ -53,8 +54,9 @@ export function formatLyricSheet(
  * Chords sit on their own line; lyrics below — not syllable-aligned.
  */
 export function synthesizeSheetFromSong(song: Song, semitones: number): string {
+  const { sections } = resolvePlayOrder(song);
   const blocks: string[] = [];
-  for (const s of song.sections) {
+  for (const s of sections) {
     const header = `[${s.name}]`;
     const chords = s.chords
       .map((c) => transposeChord(c, semitones))

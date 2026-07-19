@@ -1,4 +1,5 @@
 import type { Song, Section, SectionType } from "./music";
+import { resolvePlayOrder } from "./ug-form";
 
 type DbSection = {
   id?: string;
@@ -66,6 +67,8 @@ export function dbToSong(song: DbSong, arr: DbArrangement | null): Song {
     ? (arr!.structure as unknown[]).map((v) => String(v))
     : sections.map((s) => s.name);
 
+  const play = resolvePlayOrder({ sections, form: structure });
+
   return {
     id: song.id,
     title: song.title,
@@ -74,8 +77,8 @@ export function dbToSong(song: DbSong, arr: DbArrangement | null): Song {
     bpm: song.bpm ?? 100,
     capo: song.capo ?? 0,
     timeSig: "4/4",
-    form: structure,
-    sections,
+    form: play.form,
+    sections: play.sections,
     sheetSource: song.raw_input?.trim() || undefined,
   };
 }

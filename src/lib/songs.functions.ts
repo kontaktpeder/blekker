@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { enforceUgFormFidelity, extractUgSectionOrder } from "@/lib/ug-form";
 
 const SectionSchema = z.object({
   id: z.string().optional(),
@@ -178,6 +179,12 @@ export const createSongFromInput = createServerFn({ method: "POST" })
     const apiKey = process.env.LOVABLE_API_KEY;
     if (!apiKey) throw new Error("Missing LOVABLE_API_KEY");
 
+    const ugHeaders = extractUgSectionOrder(source);
+    const ugFormHint =
+      ugHeaders.length >= 2
+        ? `\n\nMANDATORY SECTION ORDER (from the paste — copy into "structure" EXACTLY, same count and order; never drop repeats):\n${JSON.stringify(ugHeaders)}\nYou MUST emit one entry in "sections" for EVERY item in that list (same length). Identical choruses may share the same chords/lyrics content, but each occurrence still needs its own sections[] entry with the correct name.`
+        : "";
+
     const system = `You are a music chart parser for a working band.
 You receive messy lyrics + chords (possibly Ultimate Guitar style, or a Norwegian/English webpage) and you ALWAYS return a clean, standardized arrangement as STRICT JSON.
 
@@ -190,7 +197,7 @@ The JSON MUST match this TypeScript shape exactly:
   "current_key": string,        // same as original_key unless transposition is obvious
   "bpm": number,                // best guess, integer 60-200
   "capo": number,               // 0 if unknown
-  "structure": string[],        // e.g. ["Intro","Verse","Chorus","Verse","Chorus","Bridge","Chorus","Chorus"]
+  "structure": string[],        // FULL play order — every section appearance, including repeats
   "sections": [
     {
       "id": string,             // short unique id like "s1","s2"
@@ -200,16 +207,23 @@ The JSON MUST match this TypeScript shape exactly:
       "chords": string[],       // ONE chord per bar; use "%" to repeat previous bar
       "lyrics": string|null,    // plain lyrics for this section, line-broken, no chord markers inline
       "notes": string|null,     // short band note, e.g. "Drop to half-time", or null
-      "repeat": number|null     // play this section N times, null if 1
+      "repeat": number|null     // play this section N times, null if 1 — prefer expanding structure instead of repeat>1
     }
   ],
   "band_notes": string|null     // 1-3 sentences of overall arrangement notes
 }
 
-Rules:
+CRITICAL FORM FIDELITY (Ultimate Guitar / chords-over-words):
+- Walk the source top-to-bottom. Every [Intro], [Verse 1], [Pre-Chorus], [Chorus], [Solo], [Bridge], [Outro], etc. is a separate play-order step.
+- "structure" MUST list every appearance in order. If Chorus appears 4 times in the paste, structure has 4 "Chorus" (or "Chorus"/"Final Chorus"/…) entries — NEVER collapse to one.
+- "sections" MUST have the SAME LENGTH as "structure", one object per play-order step (unique ids s1..sN). Do not store a short unique library with a longer structure.
+- Different verses keep different lyrics. Key-change choruses keep the later chords — do not merge with the earlier chorus.
+- Prefer expanding the form over using repeat>1.
+
+Other rules:
 - Always output bars as one chord per bar. If a bar holds 2 chords, pick the strongest.
 - Use sharps in chord symbols by default (C#, F#) unless source clearly uses flats.
-- Strip out tab numbers, [Verse] markers, capo notes — they go into the structured fields, not lyrics.
+- Strip out tab numbers; [Verse]-style markers belong in structure/name, not lyrics.
 - Never add commentary outside the JSON. No markdown fences.`;
 
     const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -222,7 +236,7 @@ Rules:
         model: "google/gemini-3-flash-preview",
         messages: [
           { role: "system", content: system },
-          { role: "user", content: source },
+          { role: "user", content: `${source}${ugFormHint}` },
         ],
         response_format: { type: "json_object" },
       }),
@@ -248,17 +262,18 @@ Rules:
 
     const arrangement = ArrangementSchema.parse(parsed);
 
-    // 3) Persist — keep the chord/lyric source for UG-style lyric sheets
+    // 3) Enforce Ultimate Guitar form fidelity — never persist a collapsed form.
     const sheetSource = (data.rawInput?.trim() || source).slice(0, 50000);
+    const { arrangement: faithful } = enforceUgFormFidelity(arrangement, sheetSource);
 
     const { data: song, error: songErr } = await supabaseAdmin
       .from("songs")
       .insert({
-        title: arrangement.title,
-        artist: arrangement.artist ?? null,
-        original_key: arrangement.original_key ?? null,
-        bpm: arrangement.bpm ?? null,
-        capo: arrangement.capo ?? 0,
+        title: faithful.title,
+        artist: faithful.artist ?? null,
+        original_key: faithful.original_key ?? null,
+        bpm: faithful.bpm ?? null,
+        capo: faithful.capo ?? 0,
         source_url: data.sourceUrl ?? null,
         raw_input: sheetSource || null,
       })
@@ -269,10 +284,10 @@ Rules:
     const { error: arrErr } = await supabaseAdmin.from("arrangements").insert({
       song_id: song.id,
       version: 1,
-      current_key: arrangement.current_key ?? arrangement.original_key ?? null,
-      structure: arrangement.structure,
-      sections: arrangement.sections,
-      band_notes: arrangement.band_notes ?? null,
+      current_key: faithful.current_key ?? faithful.original_key ?? null,
+      structure: faithful.structure,
+      sections: faithful.sections,
+      band_notes: faithful.band_notes ?? null,
     });
     if (arrErr) throw new Error(arrErr.message);
 

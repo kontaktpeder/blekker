@@ -1,4 +1,5 @@
 import { transposeChord, transposeKey, type Song } from "@/lib/music";
+import { resolvePlayOrder } from "@/lib/ug-form";
 
 interface Props {
   song: Song;
@@ -14,6 +15,7 @@ interface Props {
  */
 export function PrintableChart({ song, semitones, showLyrics }: Props) {
   const displayKey = transposeKey(song.key, semitones);
+  const { form, sections } = resolvePlayOrder(song);
 
   return (
     <div
@@ -85,7 +87,7 @@ export function PrintableChart({ song, semitones, showLyrics }: Props) {
           </div>
         </div>
 
-        {song.form.length > 0 && (
+        {form.length > 0 && (
           <div
             style={{
               marginTop: 14,
@@ -100,10 +102,10 @@ export function PrintableChart({ song, semitones, showLyrics }: Props) {
             }}
           >
             <span style={{ fontSize: 11, opacity: 0.7 }}>FORM</span>
-            {song.form.map((f, i) => (
+            {form.map((f, i) => (
               <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                 <span style={{ fontWeight: 700 }}>{f}</span>
-                {i < song.form.length - 1 && <span style={{ opacity: 0.5 }}>›</span>}
+                {i < form.length - 1 && <span style={{ opacity: 0.5 }}>›</span>}
               </span>
             ))}
           </div>
@@ -112,14 +114,14 @@ export function PrintableChart({ song, semitones, showLyrics }: Props) {
 
       {/* SECTIONS — flat rows, no cards */}
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        {song.sections.map((s, idx) => (
+        {sections.map((s, idx) => (
           <section
             key={s.id}
             data-pdf-section
             style={{
               paddingBottom: 12,
               borderBottom:
-                idx < song.sections.length - 1 ? "1px solid #000" : "none",
+                idx < sections.length - 1 ? "1px solid #000" : "none",
             }}
           >
             {/* Section header row */}

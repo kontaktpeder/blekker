@@ -1,0 +1,14 @@
+---
+description: Ultimate Guitar / chart form must never drop repeated sections
+alwaysApply: true
+---
+
+# UG form fidelity
+
+When importing or changing chart/import/engraving code:
+
+- Every `[Section]` in an Ultimate Guitar (or chords-over-words) paste is a **play-order step**. Repeats count. Never collapse four Choruses into one.
+- Persist `structure` as the full order and `sections` with the **same length** (one entry per step). Use `enforceUgFormFidelity` / `resolvePlayOrder` from `src/lib/ug-form.ts`.
+- PDF, Live, Full, and Chart must render via `resolvePlayOrder` (or already-expanded sections) — never unique `sections` alone while ignoring `form`.
+- Do not “fix” arrangements by deduplicating section libraries. Prefer expanding the form over `repeat > 1`.
+- If paste headers and stored form disagree on count/order, treat that as a bug to fix in import — not as acceptable cleanup.
