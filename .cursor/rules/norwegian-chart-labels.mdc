@@ -1,0 +1,13 @@
+---
+description: Norwegian section labels and notes; never empty expanded sections
+alwaysApply: true
+---
+
+# Norwegian chart language + content matching
+
+Global for every import/render:
+
+- **Section labels** (Intro, Vers, Refreng, Brygge, Mellomspill, Stikk, …) are Norwegian — use `localizeSectionLabel` / `section-labels-no.ts`. Not Swedish (REFRÄNG/BRYGGA) on the chart chrome.
+- **Band notes** go through `localizeBandNotes` (EN/SV → NO). **Lyrics** stay in the song’s language.
+- Form expansion must match by **musical role** (`REFRÄNG` ↔ `Chorus` ↔ `Refreng`) via `sectionNamesCompatible` — never leave blank `-` bars when a contentful same-role section exists.
+- Empty placeholder sections are a last resort only.

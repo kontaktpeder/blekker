@@ -166,6 +166,31 @@ const REPLACEMENTS: Array<{ re: RegExp; to: string }> = [
     re: /\bloud\b/gi,
     to: "sterkt",
   },
+  // Swedish → Norwegian (band notes only — not lyrics)
+  {
+    re: /st[aä]m\s+ett?\s+halv(?:t)?\s*tonsteg\s+l[aä]gre(?:\s*\(([^)]+)\))?/gi,
+    to: "Stem et halvtonetrinn ned ($1)",
+  },
+  {
+    re: /st[aä]m\s+ned\s+ett?\s+halv(?:t)?\s*tonsteg/gi,
+    to: "Stem et halvtonetrinn ned",
+  },
+  {
+    re: /halv(?:t)?\s*tonsteg\s+l[aä]gre/gi,
+    to: "halvtonetrinn ned",
+  },
+  {
+    re: /halv(?:t)?\s*tonsteg/gi,
+    to: "halvtonetrinn",
+  },
+  {
+    re: /tonart(?:s)?\s*byte/gi,
+    to: "toneartsskifte",
+  },
+  {
+    re: /\bst[aä]m\s+ned\b/gi,
+    to: "stem ned",
+  },
 ];
 
 /** Translate band notes to Norwegian musician vernacular (light irony, not literal). */
@@ -176,6 +201,7 @@ export function localizeBandNotes(notes: string | null | undefined): string {
     out = out.replace(re, to);
   }
   out = out
+    .replace(/\s+ned\s+\(\s*\)/gi, " ned")
     .replace(/\s{2,}/g, " ")
     .replace(/\s+([,.;:])/g, "$1")
     .replace(/;\s*/g, " — ")

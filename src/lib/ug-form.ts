@@ -1,17 +1,17 @@
 import type { Section, SectionType, Song } from "./music";
+import {
+  kindToSectionType,
+  localizeSectionLabel,
+  normalizeSectionName,
+  sectionKindKey,
+  sectionNamesCompatible,
+} from "./section-labels-no";
+import { localizeBandNotes } from "./band-notes-no";
 
 const SKIP_HEADERS = /^(tab|chords?|lyrics?|solo tab|splo|intro tab)$/i;
 const CHORD_ONLY = /^[A-G][#b]?(?:m|maj|min|dim|aug|sus|add|maj7|m7|m9|m11|m13|9|11|13|6|7|2|4|5)*(?:\/[A-G][#b]?)?$/i;
 
-/** Normalize section labels for matching (`[Chorus]` → `chorus`). */
-export function normalizeSectionName(name: string): string {
-  return name
-    .replace(/^\[|\]$/g, "")
-    .trim()
-    .toLowerCase()
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ");
-}
+export { normalizeSectionName, localizeSectionLabel };
 
 /**
  * Pull Ultimate Guitar / chords-over-words section headers in document order.
@@ -30,83 +30,130 @@ export function extractUgSectionOrder(source: string): string[] {
 }
 
 function inferType(name: string): SectionType {
-  const n = normalizeSectionName(name);
-  if (n.includes("intro")) return "intro";
-  if (n.includes("outro")) return "outro";
-  if (n.includes("bridge")) return "bridge";
-  if (n.includes("solo") || n.includes("instrumental")) return "solo";
-  if (n.includes("interlude")) return "interlude";
-  if (n.includes("chorus") || n.includes("hook") || n.includes("refrain")) return "chorus";
-  if (n.includes("pre")) return "verse";
-  return "verse";
+  return kindToSectionType(sectionKindKey(name).kind);
 }
 
-function namesCompatible(formNorm: string, sectionNorm: string): boolean {
-  if (formNorm === sectionNorm) return true;
-  if (formNorm.startsWith(sectionNorm) || sectionNorm.startsWith(formNorm)) return true;
-  // "pre-chorus" vs "prechorus" / "pre chorus"
-  const compact = (s: string) => s.replace(/[\s-]+/g, "");
-  if (compact(formNorm) === compact(sectionNorm)) return true;
-  // "chorus" matches "final chorus" / "chorus 2"
-  const formCore = formNorm.replace(/^\d+\s*/, "").replace(/\s*\d+$/, "").trim();
-  const secCore = sectionNorm.replace(/^\d+\s*/, "").replace(/\s*\d+$/, "").trim();
-  if (formCore && secCore && (formCore === secCore || formCore.includes(secCore) || secCore.includes(formCore))) {
-    return true;
-  }
-  return false;
+function hasRealChords(s: Section): boolean {
+  return s.chords.some((c) => {
+    const t = (c ?? "").trim();
+    return t && t !== "-" && t !== "%";
+  });
+}
+
+function chordRichness(s: Section): number {
+  return s.chords.filter((c) => {
+    const t = (c ?? "").trim();
+    return t && t !== "-" && t !== "%";
+  }).length;
 }
 
 function cloneSection(src: Section, id: string, name: string): Section {
+  const label = localizeSectionLabel(name);
   return {
     ...src,
     id,
-    name,
-    type: inferType(name),
+    name: label,
+    type: inferType(label),
     chords: [...src.chords],
+    lyrics: src.lyrics,
+    notes: src.notes ? localizeBandNotes(src.notes) : src.notes,
   };
 }
 
 function emptySection(id: string, name: string): Section {
+  const label = localizeSectionLabel(name);
   return {
     id,
-    type: inferType(name),
-    name,
+    type: inferType(label),
+    name: label,
     bars: 4,
     chords: ["-", "-", "-", "-"],
   };
 }
 
+function findBestMatch(
+  sections: Section[],
+  formName: string,
+  used: Set<number>,
+): number {
+  const prefer = (pred: (s: Section, j: number) => boolean) => {
+    let best = -1;
+    let bestScore = -1;
+    sections.forEach((s, j) => {
+      if (!pred(s, j)) return;
+      const score = chordRichness(s) * 10 + (hasRealChords(s) ? 1000 : 0);
+      if (score > bestScore) {
+        bestScore = score;
+        best = j;
+      }
+    });
+    return best;
+  };
+
+  const n = normalizeSectionName(formName);
+  const want = sectionKindKey(formName);
+
+  // 1) Unused exact name
+  let idx = prefer(
+    (s, j) => !used.has(j) && normalizeSectionName(s.name) === n,
+  );
+  if (idx >= 0) return idx;
+
+  // 2) Unused compatible (kind + number)
+  idx = prefer(
+    (s, j) => !used.has(j) && sectionNamesCompatible(formName, s.name),
+  );
+  if (idx >= 0) return idx;
+
+  // 3) Unused same kind (ignore number) — fills "Refreng" from "Chorus"
+  idx = prefer((s, j) => {
+    if (used.has(j)) return false;
+    const k = sectionKindKey(s.name);
+    return k.kind === want.kind && want.kind !== "other";
+  });
+  if (idx >= 0) return idx;
+
+  // 4) Reuse any compatible with content
+  idx = prefer(
+    (s, j) => sectionNamesCompatible(formName, s.name) && hasRealChords(s),
+  );
+  if (idx >= 0) return idx;
+
+  // 5) Reuse richest same-kind with content
+  idx = prefer((s) => {
+    const k = sectionKindKey(s.name);
+    return k.kind === want.kind && want.kind !== "other" && hasRealChords(s);
+  });
+  if (idx >= 0) return idx;
+
+  // 6) Any exact / compatible even if empty
+  idx = prefer((s) => normalizeSectionName(s.name) === n);
+  if (idx >= 0) return idx;
+  idx = prefer((s) => sectionNamesCompatible(formName, s.name));
+  return idx;
+}
+
 /**
  * Expand a section library against a play-order `form`.
- * Repeated form entries (2nd Chorus, …) reuse matching content when needed.
+ * Matches EN/SV/NO labels by musical role so Refräng ↔ Chorus ↔ Refreng.
+ * Never invents empty bars when a contentful same-role section exists.
  */
 export function expandSectionsByForm(sections: Section[], form: string[]): Section[] {
-  if (!form.length) return sections;
+  if (!form.length) return sections.map((s) => cloneSection(s, s.id, s.name));
   if (
     form.length === sections.length &&
     form.every((f, i) => normalizeSectionName(f) === normalizeSectionName(sections[i]?.name ?? ""))
   ) {
-    return sections;
+    return sections.map((s, i) => cloneSection(s, s.id || `f${i + 1}`, form[i] || s.name));
   }
 
   const used = new Set<number>();
   const result: Section[] = [];
 
   form.forEach((formName, i) => {
-    const label = formName.replace(/^\[|\]$/g, "").trim() || `Section ${i + 1}`;
-    const n = normalizeSectionName(label);
+    const label = formName.replace(/^\[|\]$/g, "").trim() || `Del ${i + 1}`;
     const id = `f${i + 1}`;
-
-    let idx = sections.findIndex((s, j) => !used.has(j) && normalizeSectionName(s.name) === n);
-    if (idx < 0) {
-      idx = sections.findIndex((s, j) => !used.has(j) && namesCompatible(n, normalizeSectionName(s.name)));
-    }
-    if (idx < 0) {
-      idx = sections.findIndex((s) => normalizeSectionName(s.name) === n);
-    }
-    if (idx < 0) {
-      idx = sections.findIndex((s) => namesCompatible(n, normalizeSectionName(s.name)));
-    }
+    const idx = findBestMatch(sections, label, used);
 
     if (idx >= 0) {
       used.add(idx);
@@ -141,11 +188,10 @@ export function checkFormFidelity(source: string, form: string[]): FormFidelity 
       message: `Form has ${got.length} parts but paste has ${expected.length} section headers — repeats were dropped.`,
     };
   }
-  // Soft check: prefix of got should match expected names (compatible)
   const mismatchAt = expected.findIndex((e, i) => {
     const g = got[i];
     if (!g) return true;
-    return !namesCompatible(normalizeSectionName(e), normalizeSectionName(g));
+    return !sectionNamesCompatible(e, g);
   });
   if (mismatchAt >= 0) {
     return {
@@ -161,17 +207,23 @@ export function checkFormFidelity(source: string, form: string[]): FormFidelity 
 /**
  * Canonical play order for charts/PDF:
  * prefer the longer of structure vs sections so repeats are never lost.
+ * Labels are normalized to Norwegian.
  */
 export function resolvePlayOrder(song: Pick<Song, "sections" | "form">): {
   form: string[];
   sections: Section[];
 } {
-  const structure = song.form ?? [];
-  const sections = song.sections ?? [];
+  const structure = (song.form ?? []).map((s) => localizeSectionLabel(s));
+  const sections = (song.sections ?? []).map((s, i) =>
+    cloneSection(s, s.id || `s${i + 1}`, s.name),
+  );
 
   if (structure.length > sections.length) {
-    const expanded = expandSectionsByForm(sections, structure);
-    return { form: structure.map((s) => s.replace(/^\[|\]$/g, "").trim()), sections: expanded };
+    const expanded = expandSectionsByForm(song.sections ?? [], song.form ?? []);
+    return {
+      form: expanded.map((s) => s.name),
+      sections: expanded,
+    };
   }
 
   if (sections.length >= structure.length && sections.length > 0) {
@@ -181,10 +233,10 @@ export function resolvePlayOrder(song: Pick<Song, "sections" | "form">): {
     };
   }
 
-  if (structure.length > 0) {
-    const expanded = expandSectionsByForm(sections, structure);
+  if ((song.form ?? []).length > 0) {
+    const expanded = expandSectionsByForm(song.sections ?? [], song.form ?? []);
     return {
-      form: structure.map((s) => s.replace(/^\[|\]$/g, "").trim()),
+      form: expanded.map((s) => s.name),
       sections: expanded,
     };
   }
@@ -194,7 +246,7 @@ export function resolvePlayOrder(song: Pick<Song, "sections" | "form">): {
 
 /**
  * After AI parse: force form from UG headers when present, expand sections
- * to full play order, and return fidelity status.
+ * to full play order, Norwegian labels/notes, and return fidelity status.
  */
 export function enforceUgFormFidelity<T extends {
   structure: string[];
@@ -208,6 +260,7 @@ export function enforceUgFormFidelity<T extends {
     notes?: string | null;
     repeat?: number | null;
   }>;
+  band_notes?: string | null;
 }>(arrangement: T, source: string): { arrangement: T; fidelity: FormFidelity } {
   const expected = extractUgSectionOrder(source);
   const asSections: Section[] = arrangement.sections.map((s, i) => ({
@@ -232,7 +285,7 @@ export function enforceUgFormFidelity<T extends {
   const expanded = expandSectionsByForm(asSections, form);
   const next = {
     ...arrangement,
-    structure: form,
+    structure: expanded.map((s) => s.name),
     sections: expanded.map((s, i) => ({
       id: s.id || `s${i + 1}`,
       type: s.type,
@@ -240,11 +293,14 @@ export function enforceUgFormFidelity<T extends {
       bars: s.bars,
       chords: s.chords,
       lyrics: s.lyrics ?? null,
-      notes: s.notes ?? null,
+      notes: s.notes ? localizeBandNotes(s.notes) : null,
       repeat: s.repeat ?? null,
     })),
+    band_notes: arrangement.band_notes
+      ? localizeBandNotes(arrangement.band_notes)
+      : arrangement.band_notes ?? null,
   } as T;
 
-  const fidelity = checkFormFidelity(source, next.structure);
+  const fidelity = checkFormFidelity(source, form);
   return { arrangement: next, fidelity };
 }
