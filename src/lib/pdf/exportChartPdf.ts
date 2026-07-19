@@ -17,25 +17,30 @@ interface ExportOptions {
   variant?: LeadSheetVariant;
 }
 
-function slugify(s: string): string {
+/** Title Case each word; keep spaces; strip filesystem-unsafe chars. */
+function toFilenamePart(s: string): string {
   return s
-    .toLowerCase()
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "")
+    .replace(/[\\/:*?"<>|]+/g, "")
+    .trim()
+    .split(/[\s_]+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ")
     .slice(0, 80);
 }
 
+/** Always `Title-Artist.ext` — Title Case words, dash between title and artist. */
 export function buildFilename(
   song: Song,
-  layout: ExportLayout,
+  _layout: ExportLayout,
   ext: string,
 ): string {
-  const parts = [song.title, song.artist].filter(Boolean).map(slugify);
-  const base = parts.join("-") || "chart";
-  const suffix = layout === "lead-sheet" ? "-leadsheet" : "";
-  return `${base}${suffix}.${ext}`;
+  const parts = [song.title, song.artist].filter(Boolean).map(toFilenamePart);
+  const base = parts.join("-") || "Chart";
+  const cleanExt = ext.replace(/^\.+/, "");
+  return `${base}.${cleanExt}`;
 }
 
 const A4_W_MM = 210;

@@ -168,46 +168,101 @@ export function PrintableChart({ song, semitones, showLyrics }: Props) {
               </span>
             </div>
 
-            {/* Chords — big and scannable, full-width grid */}
+            {/* Bars — chord above, slash line below (same structure as lead sheet) */}
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: `repeat(${Math.min(
-                  Math.max(s.chords.length, 1),
-                  4,
-                )}, 1fr)`,
+                gridTemplateColumns: "repeat(4, 1fr)",
                 gap: 0,
                 border: "1.5px solid #000",
               }}
             >
-              {s.chords.map((c, i) => {
-                const isRest = c === "%" || c === "-";
-                const col = i % 4;
-                const row = Math.floor(i / 4);
-                const totalRows = Math.ceil(s.chords.length / Math.min(s.chords.length, 4));
+              {(s.chords.length > 0
+                ? s.chords
+                : Array.from({ length: Math.max(1, s.bars) }, () => "-")
+              ).map((raw, i) => {
+                const c = transposeChord(raw, semitones);
+                const isSimile = raw === "%";
+                const isRest = raw === "-" || raw === "";
+                const cols = 4;
+                const col = i % cols;
+                const row = Math.floor(i / cols);
                 return (
                   <div
                     key={i}
                     style={{
-                      borderRight: col < 3 && i < s.chords.length - 1 ? "1px solid #000" : "none",
+                      display: "flex",
+                      flexDirection: "column",
+                      borderRight: col < cols - 1 ? "1px solid #000" : "none",
                       borderTop: row > 0 ? "1px solid #000" : "none",
-                      padding: "14px 8px",
-                      textAlign: "center",
-                      fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-                      fontWeight: 700,
-                      fontSize: 22,
-                      color: isRest ? "#555" : "#000",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      lineHeight: 1,
-                      // ensure last row cells without right border don't look broken
-                      ...(totalRows > 1 && row === totalRows - 1 && col === (s.chords.length - 1) % 4
-                        ? {}
-                        : {}),
+                      minHeight: 56,
                     }}
                   >
-                    {transposeChord(c, semitones)}
+                    <div
+                      style={{
+                        flex: 1,
+                        display: "flex",
+                        alignItems: "flex-end",
+                        justifyContent: "flex-start",
+                        padding: "10px 8px 6px",
+                        fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                        fontWeight: 700,
+                        fontSize: 20,
+                        color: isSimile || isRest ? "#555" : "#000",
+                        lineHeight: 1,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {isRest ? "—" : c}
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-around",
+                        height: 28,
+                        borderTop: "1px solid #000",
+                        padding: "0 6px",
+                      }}
+                      aria-hidden
+                    >
+                      {isSimile ? (
+                        <span
+                          style={{
+                            fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                            fontSize: 18,
+                            color: "#555",
+                          }}
+                        >
+                          %
+                        </span>
+                      ) : isRest ? (
+                        <span
+                          style={{
+                            width: 18,
+                            height: 6,
+                            borderRadius: 2,
+                            background: "#888",
+                          }}
+                        />
+                      ) : (
+                        [0, 1, 2, 3].map((b) => (
+                          <span
+                            key={b}
+                            style={{
+                              display: "inline-block",
+                              width: 2.5,
+                              height: 14,
+                              borderRadius: 999,
+                              background: "#111",
+                              transform: "rotate(28deg)",
+                            }}
+                          />
+                        ))
+                      )}
+                    </div>
                   </div>
                 );
               })}

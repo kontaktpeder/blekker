@@ -24,7 +24,6 @@ export function SectionCard({
 }: Props) {
   const color = SECTION_COLOR[section.type];
   const liveLg = mode === "live";
-  const chartOnly = mode === "chart";
   const canEdit = editing && mode === "full" && !!onChange;
 
   const patch = (partial: Partial<Section>) => {
@@ -129,23 +128,13 @@ export function SectionCard({
       )}
 
       <div className="mt-4 pl-3">
-        {chartOnly ? (
-          <ChordGrid
-            section={section}
-            semitones={semitones}
-            liveLg={false}
-            editing={canEdit}
-            onChordChange={canEdit ? setChordAt : undefined}
-          />
-        ) : (
-          <LeadBars
-            section={section}
-            semitones={semitones}
-            liveLg={liveLg}
-            editing={canEdit}
-            onChordChange={canEdit ? setChordAt : undefined}
-          />
-        )}
+        <LeadBars
+          section={section}
+          semitones={semitones}
+          liveLg={liveLg}
+          editing={canEdit}
+          onChordChange={canEdit ? setChordAt : undefined}
+        />
       </div>
 
       {(showLyrics || canEdit) && (section.lyrics || canEdit) && (
@@ -169,47 +158,6 @@ export function SectionCard({
         ) : null
       )}
     </section>
-  );
-}
-
-function ChordGrid({
-  section,
-  semitones,
-  liveLg,
-  editing,
-  onChordChange,
-}: {
-  section: Section;
-  semitones: number;
-  liveLg: boolean;
-  editing?: boolean;
-  onChordChange?: (index: number, value: string) => void;
-}) {
-  return (
-    <div className="chord-grid">
-      {section.chords.map((c, i) => (
-        editing ? (
-          <input
-            key={i}
-            value={c}
-            onChange={(e) => onChordChange?.(i, e.target.value)}
-            className="h-12 md:h-14 rounded-md border border-border bg-background/60 font-mono font-semibold text-center text-base md:text-xl outline-none focus:ring-1 focus:ring-primary px-1"
-            style={{ color: "var(--chord)" }}
-          />
-        ) : (
-          <div
-            key={i}
-            className={cn(
-              "flex items-center justify-center rounded-md border border-border/60 bg-background/40 font-mono font-semibold tabular-nums px-1 text-center leading-none break-all",
-              liveLg ? "h-16 md:h-24 text-xl md:text-4xl" : "h-12 md:h-14 text-base md:text-xl",
-            )}
-            style={{ color: c === "%" || c === "-" ? "var(--muted-foreground)" : "var(--chord)" }}
-          >
-            {transposeChord(c, semitones)}
-          </div>
-        )
-      ))}
-    </div>
   );
 }
 
