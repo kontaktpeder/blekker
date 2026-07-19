@@ -20,7 +20,10 @@ export interface System {
   /** True when this system is the first of its section (draws label + rehearsal box). */
   isSectionStart: boolean;
   sectionLabel: string;
-  /** Only rendered on isSectionStart systems. */
+  /**
+   * One clean lyric line for this system (distributed across the section’s systems).
+   * Not a multi-line bulk dump.
+   */
   sectionLyrics?: string;
   sectionNotes?: string;
   measures: LaidMeasure[];
@@ -28,12 +31,11 @@ export interface System {
   contentWidth: number;
 }
 
-const MIN_MEASURE_WIDTH = 180;   // ~18mm — sensible minimum
-const CHORD_SLOT = 90;           // ~9mm per additional chord in the bar
+const MIN_MEASURE_WIDTH = 180;
+const CHORD_SLOT = 90;
 const REST_WIDTH = 150;
 const SIMILE_WIDTH = 150;
 
-/** Intrinsic (unjustified) width for a measure based on musical density. */
 function intrinsicWidth(m: Measure): number {
   if (m.slash === "rest") return REST_WIDTH;
   if (m.slash === "simile") return SIMILE_WIDTH;
@@ -42,9 +44,7 @@ function intrinsicWidth(m: Measure): number {
 }
 
 interface LayoutOpts {
-  /** Available width for measures INSIDE a system (after left indent). */
   systemContentWidth: number;
-  /** Max measures per system regardless of width. */
   maxMeasuresPerSystem?: number;
 }
 
@@ -53,8 +53,8 @@ function buildSystemFromMeasures(
   measures: Measure[],
   isSectionStart: boolean,
   contentWidth: number,
+  lyricLine?: string,
 ): System {
-  // Justify: sum intrinsic, then distribute leftover proportionally.
   const intrinsics = measures.map(intrinsicWidth);
   const total = intrinsics.reduce((a, b) => a + b, 0);
   const scale = total > 0 ? contentWidth / total : 1;
@@ -64,7 +64,6 @@ function buildSystemFromMeasures(
   const laid: LaidMeasure[] = measures.map((m, i) => {
     const w = widths[i];
     const beats = Math.max(1, m.beats);
-    // First beat inset slightly, last beat inset slightly (avoid touching barlines).
     const inset = 18;
     const usable = Math.max(0, w - inset * 2);
     const step = beats > 1 ? usable / (beats - 1) : 0;
@@ -79,11 +78,44 @@ function buildSystemFromMeasures(
     sectionId: section.id,
     isSectionStart,
     sectionLabel: section.label,
-    sectionLyrics: isSectionStart ? section.lyrics : undefined,
+    sectionLyrics: lyricLine,
     sectionNotes: isSectionStart ? section.notes : undefined,
     measures: laid,
     contentWidth,
   };
+}
+
+/** Split lyrics into non-empty lines and assign one clean line per system. */
+export function distributeLyricLines(
+  lyrics: string | undefined,
+  numSystems: number,
+): (string | undefined)[] {
+  const out: (string | undefined)[] = Array.from({ length: numSystems }, () => undefined);
+  if (numSystems <= 0) return out;
+  const lines = (lyrics ?? "")
+    .split(/\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (lines.length === 0) return out;
+
+  if (lines.length <= numSystems) {
+    lines.forEach((line, i) => {
+      out[i] = line;
+    });
+    return out;
+  }
+
+  // More lyric lines than systems: pack evenly into one flowing line per system.
+  const base = Math.floor(lines.length / numSystems);
+  const extra = lines.length % numSystems;
+  let idx = 0;
+  for (let s = 0; s < numSystems; s++) {
+    const take = base + (s < extra ? 1 : 0);
+    const chunk = lines.slice(idx, idx + take);
+    idx += take;
+    out[s] = chunk.join(" · ");
+  }
+  return out;
 }
 
 export function layoutScore(score: NormalizedScore, opts: LayoutOpts): System[] {
@@ -92,18 +124,27 @@ export function layoutScore(score: NormalizedScore, opts: LayoutOpts): System[] 
   const maxWidth = opts.systemContentWidth;
 
   for (const section of score.sections) {
-    // Balance bars evenly across systems so we never get a 4+1 stranded row.
     const total = section.measures.length;
     if (total === 0) continue;
     const numSystems = Math.max(1, Math.ceil(total / maxPer));
     const base = Math.floor(total / numSystems);
-    const extra = total % numSystems; // first `extra` systems get one more bar
+    const extra = total % numSystems;
+    const lyricPerSystem = distributeLyricLines(section.lyrics, numSystems);
+
     let idx = 0;
     for (let s = 0; s < numSystems; s++) {
       const size = base + (s < extra ? 1 : 0);
       const slice = section.measures.slice(idx, idx + size);
       idx += size;
-      systems.push(buildSystemFromMeasures(section, slice, s === 0, maxWidth));
+      systems.push(
+        buildSystemFromMeasures(
+          section,
+          slice,
+          s === 0,
+          maxWidth,
+          lyricPerSystem[s],
+        ),
+      );
     }
   }
 

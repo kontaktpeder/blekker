@@ -1,4 +1,5 @@
 import { SECTION_COLOR, transposeChord, type Section } from "@/lib/music";
+import { localizeBandNotes } from "@/lib/band-notes-no";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -111,7 +112,7 @@ export function SectionCard({
           <textarea
             value={section.notes ?? ""}
             onChange={(e) => patch({ notes: e.target.value || undefined })}
-            placeholder="Note (e.g. half-time, horn hits…)"
+            placeholder="Note (f.eks. halvtempo, kick på alle fire…)"
             rows={2}
             className="mt-3 ml-3 w-[calc(100%-0.75rem)] bg-background/60 border border-border rounded-md px-3 py-2 text-sm italic text-muted-foreground outline-none focus:ring-1 focus:ring-primary resize-y"
           />
@@ -122,7 +123,7 @@ export function SectionCard({
               liveLg ? "text-lg md:text-xl" : "text-sm md:text-base",
             )}
           >
-            {section.notes}
+            {localizeBandNotes(section.notes)}
           </p>
         ) : null
       )}

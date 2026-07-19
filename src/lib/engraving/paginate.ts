@@ -84,31 +84,11 @@ export const DENSITY_PRESETS: DensityPreset[] = [
   },
 ];
 
-/** Rough lyric line count — mirrors LeadSheetSvg wrap heuristic. */
-export function countLyricLines(lyrics: string | undefined, contentWidth: number): number {
+/** Rough lyric line count — one clean line per system after distribution. */
+export function countLyricLines(lyrics: string | undefined, _contentWidth: number): number {
   if (!lyrics?.trim()) return 0;
-  const maxChars = Math.max(20, Math.floor(contentWidth / (UNIT.fontLyric * 0.55)));
-  let total = 0;
-  for (const raw of lyrics.split(/\n/)) {
-    const words = raw.split(/\s+/).filter(Boolean);
-    if (words.length === 0) {
-      total += 1;
-      continue;
-    }
-    let cur = "";
-    let lines = 0;
-    for (const wd of words) {
-      if ((cur + " " + wd).trim().length > maxChars) {
-        if (cur) lines++;
-        cur = wd;
-      } else {
-        cur = cur ? `${cur} ${wd}` : wd;
-      }
-    }
-    if (cur) lines++;
-    total += Math.max(1, lines);
-  }
-  return total;
+  // Distributed lyrics are a single line (possibly joined with ·).
+  return 1;
 }
 
 export function systemBlockHeight(

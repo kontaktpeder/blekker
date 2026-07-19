@@ -4,6 +4,7 @@ import { PAGE, DENSITY_PRESETS } from "../paginate";
 import type { LaidMeasure, System } from "../layout";
 import { UNIT, SERIF } from "./typography";
 import { KEY_ACCIDENTALS } from "./glyphs";
+import { localizeBandNotes } from "@/lib/band-notes-no";
 
 interface Props {
   score: NormalizedScore;
@@ -332,7 +333,7 @@ function MarkerRow({ measure, staffTop }: { measure: LaidMeasure; staffTop: numb
   );
 }
 
-/** Band notes above the staff — larger, clearer, wrapped if long. */
+/** Band notes above the staff — Norwegian musician speak. */
 function SectionNotes({
   notes,
   x,
@@ -344,10 +345,12 @@ function SectionNotes({
   staffTop: number;
   maxWidth: number;
 }) {
-  const cleaned = notes
-    .replace(/\b(D\.C\.|D\.S\.|Fine|To\s*Coda|Coda|Segno|Fermata)\b/gi, "")
-    .replace(/\s{2,}/g, " ")
-    .trim();
+  const cleaned = localizeBandNotes(
+    notes
+      .replace(/\b(D\.C\.|D\.S\.|Fine|To\s*Coda|Coda|Segno|Fermata)\b/gi, "")
+      .replace(/\s{2,}/g, " ")
+      .trim(),
+  );
   if (!cleaned) return null;
 
   const maxChars = Math.max(28, Math.floor(maxWidth / (UNIT.fontNotes * 0.48)));
@@ -403,13 +406,14 @@ function MeasureNumber({
 }) {
   const n = measure.measure.number;
   if (!forceShow && n % 4 !== 1) return null;
+  // Sit well above the chord row so numbers never hide inside chord symbols.
   return (
     <text
-      x={measure.x + 4}
-      y={staffTop - 22}
+      x={measure.x + 2}
+      y={staffTop - UNIT.chordRow - 10}
       fontFamily={SERIF}
       fontSize={UNIT.fontMeasureNo}
-      fill="#444"
+      fill="#888"
     >
       {n}
     </text>
@@ -427,36 +431,23 @@ function LyricLine({
   lyrics: string;
   lyricGapScale: number;
 }) {
-  if (!lyrics) return null;
+  if (!lyrics.trim()) return null;
   const gap = UNIT.lyricGap * lyricGapScale;
   const y = staffTop + UNIT.staffHeight + gap;
   const startX = system.measures[0]?.x ?? 0;
-  const w = system.contentWidth;
-  const lines: string[] = [];
-  const rawLines = lyrics.split(/\n/);
   const fontSize = UNIT.fontLyric * Math.max(0.85, lyricGapScale);
-  const maxChars = Math.max(20, Math.floor(w / (fontSize * 0.55)));
-  for (const raw of rawLines) {
-    const words = raw.split(/\s+/);
-    let cur = "";
-    for (const wd of words) {
-      if ((cur + " " + wd).trim().length > maxChars) {
-        if (cur) lines.push(cur);
-        cur = wd;
-      } else {
-        cur = cur ? cur + " " + wd : wd;
-      }
-    }
-    if (cur) lines.push(cur);
-  }
+  // One clean line under the staff — no multi-line bulk / extra gaps.
   return (
-    <g fontFamily={SERIF} fontStyle="italic" fontSize={fontSize} fill="#000">
-      {lines.map((line, i) => (
-        <text key={i} x={startX} y={y + i * (fontSize * 1.22)}>
-          {line}
-        </text>
-      ))}
-    </g>
+    <text
+      x={startX}
+      y={y}
+      fontFamily={SERIF}
+      fontStyle="italic"
+      fontSize={fontSize}
+      fill="#000"
+    >
+      {lyrics.trim()}
+    </text>
   );
 }
 
