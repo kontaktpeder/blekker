@@ -70,17 +70,44 @@ export function SongChart({ song }: Props) {
     const pxPerSec = scrollSpeed === 1 ? 24 : scrollSpeed === 2 ? 52 : 96;
     let raf = 0;
     let last = performance.now();
-    let scrollPosition = el.scrollTop;
+    /** While the user is scrolling, freeze auto-advance; resume from their position. */
+    let pauseUntil = 0;
+    let writing = false;
+    const pauseForUser = () => {
+      pauseUntil = performance.now() + 600;
+    };
+    const onScroll = () => {
+      if (writing) return;
+      pauseForUser();
+    };
+
+    el.addEventListener("wheel", pauseForUser, { passive: true });
+    el.addEventListener("touchstart", pauseForUser, { passive: true });
+    el.addEventListener("touchmove", pauseForUser, { passive: true });
+    el.addEventListener("pointerdown", pauseForUser);
+    el.addEventListener("scroll", onScroll, { passive: true });
+
     const tick = (now: number) => {
-      const dt = (now - last) / 1000;
+      const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
-      scrollPosition = Math.min(scrollPosition + pxPerSec * dt, el.scrollHeight - el.clientHeight);
-      el.scrollTop = scrollPosition;
-      if (scrollPosition >= el.scrollHeight - el.clientHeight - 1) return;
+      const max = Math.max(0, el.scrollHeight - el.clientHeight);
+      if (now >= pauseUntil) {
+        writing = true;
+        el.scrollTop = Math.min(el.scrollTop + pxPerSec * dt, max);
+        writing = false;
+      }
+      if (el.scrollTop >= max - 1) return;
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      el.removeEventListener("wheel", pauseForUser);
+      el.removeEventListener("touchstart", pauseForUser);
+      el.removeEventListener("touchmove", pauseForUser);
+      el.removeEventListener("pointerdown", pauseForUser);
+      el.removeEventListener("scroll", onScroll);
+    };
   }, [isLive, scrollSpeed]);
 
   useEffect(() => {

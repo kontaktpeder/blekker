@@ -182,7 +182,8 @@ function LeadBars({
   return (
     <div
       className={cn(
-        "grid gap-0 border border-border/70 rounded-lg overflow-hidden bg-background/30",
+        "grid gap-0 border rounded-lg overflow-hidden bg-background/30",
+        liveLg ? "border-border" : "border-border/70",
         "grid-cols-2 sm:grid-cols-4",
         liveLg && "md:grid-cols-4",
       )}
@@ -196,7 +197,8 @@ function LeadBars({
           <div
             key={i}
             className={cn(
-              "flex flex-col border-border/50",
+              "flex flex-col",
+              liveLg ? "border-border/70" : "border-border/50",
               i % 2 !== 0 && "border-l",
               "sm:border-l sm:[&:nth-child(4n+1)]:border-l-0",
               i >= 2 && "border-t sm:border-t-0",
@@ -227,22 +229,22 @@ function LeadBars({
             )}
             <div
               className={cn(
-                "flex items-center justify-around px-2 pb-2 pt-1 border-t border-border/40",
-                liveLg ? "h-10 md:h-12" : "h-8 md:h-9",
+                "flex items-center justify-around px-2 pb-2 pt-1 border-t",
+                liveLg ? "h-10 md:h-12 border-border/80" : "h-8 md:h-9 border-border/40",
               )}
               aria-hidden
             >
               {isSimile ? (
-                <span className="font-mono text-muted-foreground text-lg md:text-xl">%</span>
+                <span className={cn("font-mono text-muted-foreground", liveLg ? "text-xl md:text-2xl" : "text-lg md:text-xl")}>%</span>
               ) : isRest ? (
-                <span className="w-5 h-2 rounded-sm bg-muted-foreground/50" />
+                <span className={cn("rounded-sm bg-muted-foreground/50", liveLg ? "w-6 h-2.5" : "w-5 h-2")} />
               ) : (
                 [0, 1, 2, 3].map((b) => (
                   <span
                     key={b}
                     className={cn(
-                      "inline-block rotate-[28deg] rounded-full bg-muted-foreground/70",
-                      liveLg ? "w-[3px] h-5 md:h-6" : "w-[2.5px] h-4",
+                      "inline-block rotate-[28deg] rounded-full bg-muted-foreground/80",
+                      liveLg ? "w-[3.5px] h-5 md:h-7" : "w-[2.5px] h-4",
                     )}
                   />
                 ))
