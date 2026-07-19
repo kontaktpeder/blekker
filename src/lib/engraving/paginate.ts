@@ -1,6 +1,6 @@
 import type { NormalizedScore } from "./model";
 import type { System } from "./layout";
-import { layoutScore } from "./layout";
+import { layoutScore, wrapLyricToWidth } from "./layout";
 import { UNIT } from "./renderer/typography";
 
 /** All units in engraving units (0.1mm). A4 = 2100 × 2970. */
@@ -13,8 +13,8 @@ export const PAGE = {
   headerHeight: 200,
   sectionLabelWidth: 180,
   systemGap: 64,
-  systemHeightNoLyrics: 210,
-  maxLyricLinesForHeight: 5,
+  systemHeightNoLyrics: 220,
+  maxLyricLinesForHeight: 2,
   /** Target page count for band charts. */
   maxPages: 2,
   /** Last page with this many systems or fewer is treated as an orphan — rebalance. */
@@ -87,24 +87,29 @@ export const DENSITY_PRESETS: DensityPreset[] = [
   },
 ];
 
-/** Rough lyric line count — one clean line per system after distribution. */
-export function countLyricLines(lyrics: string | undefined, _contentWidth: number): number {
+/** Estimate wrapped lyric lines for height — matches SVG LyricLine wrapping. */
+export function countLyricLines(lyrics: string | undefined, contentWidth: number): number {
   if (!lyrics?.trim()) return 0;
-  return 1;
+  const fontSize = UNIT.fontLyric;
+  const wrapped = wrapLyricToWidth(
+    lyrics,
+    contentWidth,
+    fontSize,
+    UNIT.lyricCharWidth,
+    UNIT.maxLyricWrapLines,
+  );
+  return Math.min(wrapped.length, PAGE.maxLyricLinesForHeight);
 }
 
 export function systemBlockHeight(
   sys: System,
   density: DensityPreset = DENSITY_PRESETS[0],
 ): number {
-  const lyricLines = Math.min(
-    countLyricLines(sys.sectionLyrics, sys.contentWidth),
-    PAGE.maxLyricLinesForHeight,
-  );
-  const notesExtra = sys.sectionNotes?.trim() ? UNIT.notesRow + 10 : 0;
+  const lyricLines = countLyricLines(sys.sectionLyrics, sys.contentWidth);
+  const notesExtra = sys.sectionNotes?.trim() ? UNIT.notesRow + 12 : 0;
   const lyricGap = UNIT.lyricGap * density.lyricGapScale;
-  const lyricH =
-    lyricLines > 0 ? lyricGap + lyricLines * (UNIT.fontLyric * 1.25 * density.lyricGapScale) : 0;
+  const lineH = UNIT.fontLyric * 1.2 * density.lyricGapScale;
+  const lyricH = lyricLines > 0 ? lyricGap + lyricLines * lineH : 0;
   const base = PAGE.systemHeightNoLyrics + notesExtra + lyricH;
   return Math.round(base * density.heightScale);
 }

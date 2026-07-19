@@ -2,6 +2,7 @@ import type { NormalizedScore } from "../model";
 import type { PositionedSystem, Page, DensityPreset } from "../paginate";
 import { PAGE, DENSITY_PRESETS } from "../paginate";
 import type { LaidMeasure, System } from "../layout";
+import { wrapLyricToWidth } from "../layout";
 import { UNIT, SERIF } from "./typography";
 import { KEY_ACCIDENTALS } from "./glyphs";
 import { localizeBandNotes } from "@/lib/band-notes-no";
@@ -410,10 +411,11 @@ function MeasureNumber({
   return (
     <text
       x={measure.x + 2}
-      y={staffTop - UNIT.chordRow - 10}
+      y={staffTop - UNIT.chordRow - 12}
       fontFamily={SERIF}
       fontSize={UNIT.fontMeasureNo}
-      fill="#888"
+      fontWeight={600}
+      fill="#444"
     >
       {n}
     </text>
@@ -425,29 +427,36 @@ function LyricLine({
   staffTop,
   lyrics,
   lyricGapScale,
+  contentWidth,
 }: {
   system: System;
   staffTop: number;
   lyrics: string;
   lyricGapScale: number;
+  contentWidth: number;
 }) {
   if (!lyrics.trim()) return null;
   const gap = UNIT.lyricGap * lyricGapScale;
-  const y = staffTop + UNIT.staffHeight + gap;
+  const fontSize = UNIT.fontLyric * Math.max(0.92, lyricGapScale);
   const startX = system.measures[0]?.x ?? 0;
-  const fontSize = UNIT.fontLyric * Math.max(0.85, lyricGapScale);
-  // One clean line under the staff — no multi-line bulk / extra gaps.
+  const lines = wrapLyricToWidth(
+    lyrics,
+    contentWidth,
+    fontSize,
+    UNIT.lyricCharWidth,
+    UNIT.maxLyricWrapLines,
+  );
+  const lineH = fontSize * 1.2;
+  const y0 = staffTop + UNIT.staffHeight + gap;
+
   return (
-    <text
-      x={startX}
-      y={y}
-      fontFamily={SERIF}
-      fontStyle="italic"
-      fontSize={fontSize}
-      fill="#000"
-    >
-      {lyrics.trim()}
-    </text>
+    <g fontFamily={SERIF} fontStyle="italic" fontSize={fontSize} fill="#000">
+      {lines.map((line, i) => (
+        <text key={i} x={startX} y={y0 + i * lineH}>
+          {line}
+        </text>
+      ))}
+    </g>
   );
 }
 
@@ -545,6 +554,7 @@ function SystemBlock({
           staffTop={staffTop}
           lyrics={sys.sectionLyrics}
           lyricGapScale={density.lyricGapScale}
+          contentWidth={measuresWidth}
         />
       )}
     </g>

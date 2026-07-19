@@ -1,5 +1,7 @@
 /**
  * Engraving unit conventions. 1 unit = 0.1mm so viewBox 2100×2970 = A4.
+ * Sized for stand readability on 2-page band charts — prefer larger type
+ * over cramming; pagination should make room, not shrink fonts.
  */
 export const UNIT = {
   /** Staff line spacing (distance between two adjacent lines). */
@@ -7,24 +9,28 @@ export const UNIT = {
   /** Height of the 5-line staff (4 gaps × staffLine). */
   staffHeight: 48,
   /** Chord label row height above the staff. */
-  chordRow: 50,
+  chordRow: 56,
   /** Band-notes row above chords. */
-  notesRow: 36,
-  /** Space between staff bottom and lyric baseline. */
-  lyricGap: 52,
+  notesRow: 44,
+  /** Space between staff bottom and first lyric baseline. */
+  lyricGap: 48,
   /** Font sizes (px in SVG user units). */
-  fontTitle: 56,
-  fontArtist: 24,
-  fontMeta: 20,
-  fontChord: 28,
-  fontLyric: 28,
-  fontRehearsal: 24,
-  fontMeasureNo: 16,
-  fontMarker: 20,
-  fontSection: 24,
+  fontTitle: 58,
+  fontArtist: 26,
+  fontMeta: 22,
+  fontChord: 32,
+  fontLyric: 34,
+  fontRehearsal: 26,
+  fontMeasureNo: 22,
+  fontMarker: 22,
+  fontSection: 28,
   /** Performance notes above the staff — must stay readable on a stand. */
-  fontNotes: 24,
-  fontTimeSig: 26,
+  fontNotes: 28,
+  fontTimeSig: 28,
+  /** Approx italic-serif advance width factor for wrap estimates. */
+  lyricCharWidth: 0.5,
+  /** Max wrapped lyric lines under one system. */
+  maxLyricWrapLines: 2,
 } as const;
 
 export const SERIF = "Georgia, 'Times New Roman', Times, serif";

@@ -1,0 +1,14 @@
+---
+description: Lead-sheet engraving must stay readable on every chart
+alwaysApply: true
+---
+
+# Chart engraving readability
+
+Global rules for **all** PDF/live lead sheets — never tune one song only:
+
+- Prefer **two spacious pages** over squeezing; balance systems (see `paginate.ts`).
+- Lyrics: split phrases across systems (`distributeLyricLines`) and **wrap to staff width** (`wrapLyricToWidth`) — never dump a whole verse under system 1 so text clips at the page edge.
+- Keep stand-readable sizes in `typography.ts` (`fontLyric`, `fontChord`, `fontNotes`, `fontMeasureNo`). Do not shrink fonts to fit; change pagination/density instead.
+- Band notes always go through `localizeBandNotes` (Norwegian musician speak, sayings not calques). Add new phrases to `band-notes-no.ts` when English notes appear in imports.
+- Measure numbers must stay large enough to read at a glance above the chord row.

@@ -1,5 +1,6 @@
 import { transposeChord, transposeKey, type Song } from "@/lib/music";
 import { resolvePlayOrder } from "@/lib/ug-form";
+import { localizeBandNotes } from "@/lib/band-notes-no";
 
 interface Props {
   song: Song;
@@ -306,7 +307,7 @@ export function PrintableChart({ song, semitones, showLyrics }: Props) {
                 >
                   NOTE
                 </span>
-                {s.notes}
+                {localizeBandNotes(s.notes)}
               </p>
             )}
           </section>

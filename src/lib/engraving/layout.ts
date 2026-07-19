@@ -85,37 +85,83 @@ function buildSystemFromMeasures(
   };
 }
 
-/** Split lyrics into non-empty lines and assign one clean line per system. */
+/** Split lyrics into phrases (newlines, middots, spaced dashes). */
+export function splitLyricPhrases(lyrics: string | undefined): string[] {
+  if (!lyrics?.trim()) return [];
+  return lyrics
+    .split(/\n+|(?:\s*[·•]\s*)|(?:\s+[-–—]\s+)/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Assign phrases across systems so long verses are not dumped under system 1
+ * (which overflows the page edge). Global for every chart.
+ */
 export function distributeLyricLines(
   lyrics: string | undefined,
   numSystems: number,
 ): (string | undefined)[] {
   const out: (string | undefined)[] = Array.from({ length: numSystems }, () => undefined);
   if (numSystems <= 0) return out;
-  const lines = (lyrics ?? "")
-    .split(/\n/)
-    .map((l) => l.trim())
-    .filter(Boolean);
-  if (lines.length === 0) return out;
+  const phrases = splitLyricPhrases(lyrics);
+  if (phrases.length === 0) return out;
 
-  if (lines.length <= numSystems) {
-    lines.forEach((line, i) => {
+  if (phrases.length <= numSystems) {
+    phrases.forEach((line, i) => {
       out[i] = line;
     });
     return out;
   }
 
-  // More lyric lines than systems: pack evenly into one flowing line per system.
-  const base = Math.floor(lines.length / numSystems);
-  const extra = lines.length % numSystems;
+  const base = Math.floor(phrases.length / numSystems);
+  const extra = phrases.length % numSystems;
   let idx = 0;
   for (let s = 0; s < numSystems; s++) {
     const take = base + (s < extra ? 1 : 0);
-    const chunk = lines.slice(idx, idx + take);
+    const chunk = phrases.slice(idx, idx + take);
     idx += take;
     out[s] = chunk.join(" · ");
   }
   return out;
+}
+
+/** Word-wrap a lyric string to a pixel width; used by SVG + height estimates. */
+export function wrapLyricToWidth(
+  text: string,
+  maxWidth: number,
+  fontSize: number,
+  charWidthFactor: number,
+  maxLines: number,
+): string[] {
+  const trimmed = text.trim();
+  if (!trimmed || maxWidth <= 0 || maxLines <= 0) return trimmed ? [trimmed] : [];
+  const maxChars = Math.max(12, Math.floor(maxWidth / (fontSize * charWidthFactor)));
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let cur = "";
+
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i];
+    const next = cur ? `${cur} ${w}` : w;
+    if (next.length > maxChars && cur) {
+      lines.push(cur);
+      cur = w;
+      if (lines.length >= maxLines - 1) {
+        const rest = [cur, ...words.slice(i + 1)].join(" ");
+        lines.push(rest.length > maxChars ? `${rest.slice(0, Math.max(1, maxChars - 1))}…` : rest);
+        return lines.slice(0, maxLines);
+      }
+    } else if (next.length > maxChars && !cur) {
+      lines.push(`${w.slice(0, Math.max(1, maxChars - 1))}…`);
+      cur = "";
+      if (lines.length >= maxLines) return lines;
+    } else {
+      cur = next;
+    }
+  }
+  if (cur) lines.push(cur);
+  return lines.slice(0, maxLines);
 }
 
 export function layoutScore(score: NormalizedScore, opts: LayoutOpts): System[] {
