@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { SectionCard } from "./SectionCard";
 import { FormStrip } from "./FormStrip";
+import { LiveLeadSheet } from "./LiveLeadSheet";
 import { exportChartPdf } from "@/lib/pdf/exportChartPdf";
 import { ExportDialog } from "./ExportDialog";
 import type { ExportFormat, ExportLayout, LeadSheetVariant } from "@/lib/pdf/layouts";
@@ -149,8 +150,8 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
     if (!isLive || scrollSpeed === 0) return;
     const el = scrollRef.current;
     if (!el) return;
-    // Stage-readable speeds (px/s). Was too slow; scroll-listener also paused every frame.
-    const pxPerSec = scrollSpeed === 1 ? 55 : scrollSpeed === 2 ? 110 : 190;
+    // Stage-readable speeds (px/s) — tight band between slow and fast.
+    const pxPerSec = scrollSpeed === 1 ? 85 : scrollSpeed === 2 ? 120 : 155;
     let raf = 0;
     let last = performance.now();
     /** Pause only on real user input — not on our own scrollTop writes. */
@@ -593,65 +594,66 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
         ref={scrollRef}
         className={cn(
           "flex-1 overflow-y-auto px-2 md:px-6 py-6",
+          isLive && "bg-[#0a0a0c]",
           isLive && hasSetlist && "pb-28",
         )}
       >
-        {isLive && (
-          <div className="mb-8">
-            <h1 className="font-semibold tracking-tight leading-none text-balance text-4xl md:text-6xl">
-              {working.title}
-            </h1>
-            <p className="mt-2 font-mono uppercase tracking-[0.18em] text-muted-foreground text-base">
-              {working.artist}
-            </p>
-            <div className="mt-5 flex flex-wrap items-center gap-3 md:gap-5 rounded-lg border border-border bg-card/60 px-4 py-2 font-mono tabular-nums text-sm md:text-base w-fit">
-              <Meta label="KEY" value={displayKey} />
-              <div className="ticker-divider" />
+        {isLive ? (
+          <div className="mx-auto w-full space-y-6" style={{ maxWidth: 834 }}>
+            <div className="flex flex-wrap items-center gap-3 md:gap-4 rounded-lg border border-white/10 bg-black/40 px-4 py-2.5 font-mono tabular-nums text-sm w-fit">
               <div className="flex items-center gap-2.5">
                 <TempoPulse bpm={working.bpm} size="md" />
                 <Meta label="BPM" value={String(working.bpm)} />
               </div>
               <div className="ticker-divider" />
-              <Meta label="CAPO" value={working.capo ? String(working.capo) : "—"} />
-              {working.timeSig && (
+              <Meta label="KEY" value={displayKey} />
+              {working.capo ? (
                 <>
                   <div className="ticker-divider" />
-                  <Meta label="TIME" value={working.timeSig} />
+                  <Meta label="CAPO" value={String(working.capo)} />
                 </>
-              )}
+              ) : null}
             </div>
+            <div>
+              <p className="font-mono uppercase tracking-[0.18em] text-muted-foreground mb-3 text-sm">
+                Form
+              </p>
+              <FormStrip form={play.form} large />
+            </div>
+            <LiveLeadSheet
+              song={working}
+              semitones={canEdit ? 0 : semitones}
+              showLyrics={lyricsOn}
+            />
           </div>
-        )}
+        ) : (
+          <>
+            {mode !== "form" && (
+              <div className="mb-6">
+                <p className="font-mono uppercase tracking-[0.18em] text-muted-foreground mb-3 text-[10px] md:text-xs">
+                  Form
+                </p>
+                <FormStrip form={play.form} />
+              </div>
+            )}
 
-        {mode !== "form" && (
-          <div className={cn("mb-6", isLive && "mb-10")}>
-            <p
-              className={cn(
-                "font-mono uppercase tracking-[0.18em] text-muted-foreground mb-3",
-                isLive ? "text-sm" : "text-[10px] md:text-xs",
-              )}
-            >
-              Form
-            </p>
-            <FormStrip form={play.form} large={isLive} />
-          </div>
-        )}
-
-        {mode === "form" ? null : (
-          <div className={cn("grid gap-4", isLive ? "gap-6" : "md:gap-5")}>
-            {play.sections.map((s) => (
-              <SectionCard
-                key={s.id}
-                section={s}
-                semitones={canEdit ? 0 : semitones}
-                showLyrics={lyricsOn}
-                showNotes={showNotes}
-                mode={isLive ? "live" : mode === "chart" ? "chart" : "full"}
-                editing={canEdit}
-                onChange={canEdit ? (next) => patchSection(s.id, next) : undefined}
-              />
-            ))}
-          </div>
+            {mode === "form" ? null : (
+              <div className="grid gap-4 md:gap-5">
+                {play.sections.map((s) => (
+                  <SectionCard
+                    key={s.id}
+                    section={s}
+                    semitones={canEdit ? 0 : semitones}
+                    showLyrics={lyricsOn}
+                    showNotes={showNotes}
+                    mode={mode === "chart" ? "chart" : "full"}
+                    editing={canEdit}
+                    onChange={canEdit ? (next) => patchSection(s.id, next) : undefined}
+                  />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
       <ExportDialog

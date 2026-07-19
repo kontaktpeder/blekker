@@ -11,12 +11,19 @@ import {
 import { UNIT, SERIF } from "./typography";
 import { KEY_ACCIDENTALS } from "./glyphs";
 import { localizeBandNotes } from "@/lib/band-notes-no";
+import { CHART_THEMES, type ChartThemeId } from "./theme";
 
 interface Props {
   score: NormalizedScore;
   pages: Page[];
   showLyrics: boolean;
   density?: DensityPreset;
+  /** paper = PDF; stage = dark Live. */
+  theme?: ChartThemeId;
+  /** Per-page viewBox height (engraving units). Defaults to A4. */
+  pageHeights?: number[];
+  /** Single continuous scroll surface (no page gaps). */
+  continuous?: boolean;
 }
 
 /* --- Musical prefix widths (must match LeadSheetChart) ------------------- */
@@ -43,7 +50,7 @@ function StaffLines({ x, y, w }: { x: number; y: number; w: number }) {
         x2={x + w}
         y1={ly}
         y2={ly}
-        stroke="#000"
+        stroke="var(--chart-ink)"
         strokeWidth={1.4}
       />,
     );
@@ -60,7 +67,7 @@ function TrebleClef({ x, y }: { x: number; y: number }) {
       y={cy + 18}
       fontFamily="'Bravura Text','Noto Music','Segoe UI Symbol','Apple Symbols',serif"
       fontSize={78}
-      fill="#000"
+      fill="var(--chart-ink)"
     >
       {"\u{1D11E}"}
     </text>
@@ -84,7 +91,7 @@ function KeySignature({ x, y, keyName }: { x: number; y: number; keyName: string
           y={y + offset + 22}
           fontFamily={SERIF}
           fontSize={38}
-          fill="#000"
+          fill="var(--chart-ink)"
         >
           {glyph}
         </text>
@@ -100,7 +107,7 @@ function TimeSignature({ x, y, ts }: { x: number; y: number; ts: string }) {
   // Digits centered in upper / lower staff halves (staff height = 4×staffLine).
   // Baselines chosen so Georgia bold stays inside the five lines when rasterized.
   return (
-    <g fontFamily={SERIF} fontWeight={700} fontSize={fs} fill="#000" textAnchor="middle">
+    <g fontFamily={SERIF} fontWeight={700} fontSize={fs} fill="var(--chart-ink)" textAnchor="middle">
       <text x={cx} y={y + UNIT.staffLine * 2 - 2}>
         {num}
       </text>
@@ -158,7 +165,7 @@ function SectionLabel({ x, y, label }: { x: number; y: number; label: string }) 
           fontFamily={SERIF}
           fontSize={UNIT.fontSection}
           fontStyle="italic"
-          fill="#000"
+          fill="var(--chart-ink)"
         >
           {line}
         </text>
@@ -168,7 +175,7 @@ function SectionLabel({ x, y, label }: { x: number; y: number; label: string }) 
         x2={x + maxW}
         y1={baseY + (lines.length - 1) * lineH + 10}
         y2={baseY + (lines.length - 1) * lineH + 10}
-        stroke="#000"
+        stroke="var(--chart-ink)"
         strokeWidth={1}
       />
     </g>
@@ -181,7 +188,7 @@ function Slashes({ measure, x, w, staffY }: { measure: LaidMeasure; x: number; w
     // Whole-bar rest: filled block hanging from 2nd line from top.
     const cx = x + w / 2;
     return (
-      <rect x={cx - 10} y={staffY + UNIT.staffLine} width={20} height={UNIT.staffLine * 0.55} fill="#000" />
+      <rect x={cx - 10} y={staffY + UNIT.staffLine} width={20} height={UNIT.staffLine * 0.55} fill="var(--chart-ink)" />
     );
   }
   if (m.slash === "simile") {
@@ -190,9 +197,9 @@ function Slashes({ measure, x, w, staffY }: { measure: LaidMeasure; x: number; w
     const cy = staffY + UNIT.staffHeight / 2;
     return (
       <g>
-        <line x1={cx - 14} y1={cy + 12} x2={cx + 14} y2={cy - 12} stroke="#000" strokeWidth={2.4} />
-        <circle cx={cx - 12} cy={cy - 4} r={2.6} fill="#000" />
-        <circle cx={cx + 12} cy={cy + 4} r={2.6} fill="#000" />
+        <line x1={cx - 14} y1={cy + 12} x2={cx + 14} y2={cy - 12} stroke="var(--chart-ink)" strokeWidth={2.4} />
+        <circle cx={cx - 12} cy={cy - 4} r={2.6} fill="var(--chart-ink)" />
+        <circle cx={cx + 12} cy={cy + 4} r={2.6} fill="var(--chart-ink)" />
       </g>
     );
   }
@@ -212,7 +219,7 @@ function Slashes({ measure, x, w, staffY }: { measure: LaidMeasure; x: number; w
         y1={midY + 10}
         x2={cx + 7}
         y2={midY - 10}
-        stroke="#000"
+        stroke="var(--chart-ink)"
         strokeWidth={2.6}
         strokeLinecap="round"
       />,
@@ -235,16 +242,16 @@ function Barline({
   if (kind === "final") {
     return (
       <g>
-        <line x1={x - 6} x2={x - 6} y1={y} y2={y + height} stroke="#000" strokeWidth={1.4} />
-        <line x1={x} x2={x} y1={y} y2={y + height} stroke="#000" strokeWidth={4} />
+        <line x1={x - 6} x2={x - 6} y1={y} y2={y + height} stroke="var(--chart-ink)" strokeWidth={1.4} />
+        <line x1={x} x2={x} y1={y} y2={y + height} stroke="var(--chart-ink)" strokeWidth={4} />
       </g>
     );
   }
   if (kind === "section") {
     return (
       <g>
-        <line x1={x - 4} x2={x - 4} y1={y} y2={y + height} stroke="#000" strokeWidth={1.4} />
-        <line x1={x} x2={x} y1={y} y2={y + height} stroke="#000" strokeWidth={1.4} />
+        <line x1={x - 4} x2={x - 4} y1={y} y2={y + height} stroke="var(--chart-ink)" strokeWidth={1.4} />
+        <line x1={x} x2={x} y1={y} y2={y + height} stroke="var(--chart-ink)" strokeWidth={1.4} />
       </g>
     );
   }
@@ -254,10 +261,10 @@ function Barline({
     const d2 = y + UNIT.staffLine * 2.5;
     return (
       <g>
-        <line x1={x} x2={x} y1={y} y2={y + height} stroke="#000" strokeWidth={4} />
-        <line x1={x + 7} x2={x + 7} y1={y} y2={y + height} stroke="#000" strokeWidth={1.4} />
-        <circle cx={x + 16} cy={d1} r={2.8} fill="#000" />
-        <circle cx={x + 16} cy={d2} r={2.8} fill="#000" />
+        <line x1={x} x2={x} y1={y} y2={y + height} stroke="var(--chart-ink)" strokeWidth={4} />
+        <line x1={x + 7} x2={x + 7} y1={y} y2={y + height} stroke="var(--chart-ink)" strokeWidth={1.4} />
+        <circle cx={x + 16} cy={d1} r={2.8} fill="var(--chart-ink)" />
+        <circle cx={x + 16} cy={d2} r={2.8} fill="var(--chart-ink)" />
       </g>
     );
   }
@@ -267,14 +274,14 @@ function Barline({
     const d2 = y + UNIT.staffLine * 2.5;
     return (
       <g>
-        <circle cx={x - 16} cy={d1} r={2.8} fill="#000" />
-        <circle cx={x - 16} cy={d2} r={2.8} fill="#000" />
-        <line x1={x - 7} x2={x - 7} y1={y} y2={y + height} stroke="#000" strokeWidth={1.4} />
-        <line x1={x} x2={x} y1={y} y2={y + height} stroke="#000" strokeWidth={4} />
+        <circle cx={x - 16} cy={d1} r={2.8} fill="var(--chart-ink)" />
+        <circle cx={x - 16} cy={d2} r={2.8} fill="var(--chart-ink)" />
+        <line x1={x - 7} x2={x - 7} y1={y} y2={y + height} stroke="var(--chart-ink)" strokeWidth={1.4} />
+        <line x1={x} x2={x} y1={y} y2={y + height} stroke="var(--chart-ink)" strokeWidth={4} />
       </g>
     );
   }
-  return <line x1={x} x2={x} y1={y} y2={y + height} stroke="#000" strokeWidth={1.4} />;
+  return <line x1={x} x2={x} y1={y} y2={y + height} stroke="var(--chart-ink)" strokeWidth={1.4} />;
 }
 
 function ChordSymbols({ measure, staffTop }: { measure: LaidMeasure; staffTop: number }) {
@@ -306,7 +313,7 @@ function ChordSymbols({ measure, staffTop }: { measure: LaidMeasure; staffTop: n
   const xs = resolveNonOverlappingChordXs(preferred, widths, minX, maxRight, gap);
 
   return (
-    <g fontFamily={SERIF} fontWeight={700} fontSize={fontSize} fill="#000">
+    <g fontFamily={SERIF} fontWeight={700} fontSize={fontSize} fill="var(--chart-ink)">
       {m.chords.map((c, i) => (
         <text key={i} x={xs[i]} y={y} textAnchor="start">
           {c.symbol}
@@ -323,7 +330,7 @@ function MarkerRow({ measure, staffTop }: { measure: LaidMeasure; staffTop: numb
   // Sit just above chord symbols
   const y = staffTop - UNIT.chordRow + 14;
   return (
-    <g fontFamily={SERIF} fontStyle="italic" fontSize={UNIT.fontMarker} fill="#000">
+    <g fontFamily={SERIF} fontStyle="italic" fontSize={UNIT.fontMarker} fill="var(--chart-ink)">
       {visible.map((mk, i) => {
         if (mk.kind === "repeat-end") {
           return (
@@ -404,7 +411,7 @@ function SectionNotes({
   const baseY = staffTop - UNIT.chordRow - 14 - (lines.length - 1) * lineH;
 
   return (
-    <g fontFamily={SERIF} fontStyle="italic" fontSize={UNIT.fontNotes} fill="#000">
+    <g fontFamily={SERIF} fontStyle="italic" fontSize={UNIT.fontNotes} fill="var(--chart-ink)">
       {lines.slice(0, 2).map((line, i) => (
         <text key={i} x={x} y={baseY + i * lineH} fontWeight={500}>
           {line}
@@ -447,7 +454,7 @@ function MeasureNumber({
       fontFamily={SERIF}
       fontSize={UNIT.fontMeasureNo}
       fontWeight={600}
-      fill="#444"
+      fill="var(--chart-muted)"
     >
       {n}
     </text>
@@ -482,7 +489,7 @@ function LyricLine({
   const y0 = staffTop + UNIT.staffHeight + gap;
 
   return (
-    <g fontFamily={SERIF} fontStyle="italic" fontSize={fontSize} fill="#000">
+    <g fontFamily={SERIF} fontStyle="italic" fontSize={fontSize} fill="var(--chart-ink)">
       {lines.map((line, i) => (
         <text key={i} x={startX} y={y0 + i * lineH}>
           {line}
@@ -622,7 +629,7 @@ function Header({ score, density }: { score: NormalizedScore; density: DensityPr
         fontFamily={SERIF}
         fontSize={UNIT.fontTitle}
         fontWeight={700}
-        fill="#000"
+        fill="var(--chart-ink)"
       >
         {h.title}
       </text>
@@ -634,7 +641,7 @@ function Header({ score, density }: { score: NormalizedScore; density: DensityPr
           fontFamily={SERIF}
           fontStyle="italic"
           fontSize={UNIT.fontArtist}
-          fill="#000"
+          fill="var(--chart-ink)"
         >
           {h.artist}
         </text>
@@ -645,7 +652,7 @@ function Header({ score, density }: { score: NormalizedScore; density: DensityPr
         textAnchor="middle"
         fontFamily={SERIF}
         fontSize={UNIT.fontMeta}
-        fill="#000"
+        fill="var(--chart-ink)"
       >
         {meta}
       </text>
@@ -654,7 +661,7 @@ function Header({ score, density }: { score: NormalizedScore; density: DensityPr
         x2={PAGE.width - PAGE.marginX}
         y1={top + density.headerHeight - 36}
         y2={top + density.headerHeight - 36}
-        stroke="#000"
+        stroke="var(--chart-ink)"
         strokeWidth={1}
       />
     </g>
@@ -667,45 +674,58 @@ export function LeadSheetSvg({
   pages,
   showLyrics,
   density = DENSITY_PRESETS[0],
+  theme = "paper",
+  pageHeights,
+  continuous = false,
 }: Props) {
+  const t = CHART_THEMES[theme];
+  const cssVars = {
+    ["--chart-ink" as string]: t.ink,
+    ["--chart-muted" as string]: t.muted,
+    ["--chart-page" as string]: t.page,
+  };
+
   return (
-    <div style={{ background: "#fff" }}>
-      {pages.map((page) => (
-        <div
-          key={page.index}
-          data-pdf-section
-          style={{
-            width: `${PAGE.width / 10}mm`,
-            background: "#fff",
-            marginBottom: 24,
-          }}
-        >
-          <svg
-            viewBox={`0 0 ${PAGE.width} ${PAGE.height}`}
-            width="100%"
-            xmlns="http://www.w3.org/2000/svg"
-            style={{ display: "block", background: "#fff" }}
+    <div style={{ background: t.page, ...cssVars }}>
+      {pages.map((page) => {
+        const pageH = pageHeights?.[page.index] ?? PAGE.height;
+        return (
+          <div
+            key={page.index}
+            data-pdf-section
+            style={{
+              width: continuous ? "100%" : `${PAGE.width / 10}mm`,
+              background: t.page,
+              marginBottom: continuous ? 0 : 24,
+            }}
           >
-            <rect x={0} y={0} width={PAGE.width} height={PAGE.height} fill="#fff" />
-            {page.showHeader && <Header score={score} density={density} />}
-            {page.systems.map((ps, i) => {
-              // Time signature only at the very start of the piece (bar 1).
-              const showTimeSig = ps.system.measures[0]?.measure.number === 1;
-              return (
-                <SystemBlock
-                  key={i}
-                  positioned={ps}
-                  totalMeasures={score.totalMeasures}
-                  showTimeSig={showTimeSig}
-                  score={score}
-                  showLyrics={showLyrics}
-                  density={density}
-                />
-              );
-            })}
-          </svg>
-        </div>
-      ))}
+            <svg
+              viewBox={`0 0 ${PAGE.width} ${pageH}`}
+              width="100%"
+              xmlns="http://www.w3.org/2000/svg"
+              style={{ display: "block", background: t.page }}
+            >
+              <rect x={0} y={0} width={PAGE.width} height={pageH} fill={t.page} />
+              {page.showHeader && <Header score={score} density={density} />}
+              {page.systems.map((ps, i) => {
+                // Time signature only at the very start of the piece (bar 1).
+                const showTimeSig = ps.system.measures[0]?.measure.number === 1;
+                return (
+                  <SystemBlock
+                    key={i}
+                    positioned={ps}
+                    totalMeasures={score.totalMeasures}
+                    showTimeSig={showTimeSig}
+                    score={score}
+                    showLyrics={showLyrics}
+                    density={density}
+                  />
+                );
+              })}
+            </svg>
+          </div>
+        );
+      })}
     </div>
   );
 }

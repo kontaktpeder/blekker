@@ -338,6 +338,44 @@ export function fitLeadSheetPages(
   };
 }
 
+/**
+ * One tall continuous page for Live scroll — no A4 breaks.
+ * Uses a roomy density so systems stay stage-readable.
+ */
+export function layoutContinuousLeadSheet(
+  score: NormalizedScore,
+  systemContentWidth: number,
+  density: DensityPreset = DENSITY_PRESETS[0],
+): FitResult & { pageHeight: number } {
+  const systems = layoutScore(score, {
+    systemContentWidth,
+    maxMeasuresPerSystem: density.maxMeasuresPerSystem,
+  });
+
+  const top = pageContentTop(true, density);
+  let y = top;
+  const positioned: PositionedSystem[] = systems.map((sys) => {
+    const h = systemBlockHeight(sys, density);
+    const ps: PositionedSystem = { system: sys, x: PAGE.marginX, y, height: h };
+    y += h + density.systemGap;
+    return ps;
+  });
+
+  const contentBottom =
+    systems.length > 0 ? y - density.systemGap : top;
+  const pageHeight = Math.max(
+    Math.round(contentBottom + PAGE.marginBottom),
+    pageContentTop(true, density) + 400,
+  );
+
+  return {
+    pages: [{ index: 0, systems: positioned, showHeader: true }],
+    density,
+    systems,
+    pageHeight,
+  };
+}
+
 /** @deprecated Prefer fitLeadSheetPages — kept for simple callers. */
 export function paginate(score: NormalizedScore, systems: System[]): Page[] {
   return paginateWithDensity(score, systems, DENSITY_PRESETS[0]);
