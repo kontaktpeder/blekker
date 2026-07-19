@@ -2,7 +2,12 @@ import type { NormalizedScore } from "../model";
 import type { PositionedSystem, Page, DensityPreset } from "../paginate";
 import { PAGE, DENSITY_PRESETS } from "../paginate";
 import type { LaidMeasure, System } from "../layout";
-import { wrapLyricToWidth } from "../layout";
+import {
+  wrapLyricToWidth,
+  estimateChordSymbolWidth,
+  resolveNonOverlappingChordXs,
+  chordsFitInSpan,
+} from "../layout";
 import { UNIT, SERIF } from "./typography";
 import { KEY_ACCIDENTALS } from "./glyphs";
 import { localizeBandNotes } from "@/lib/band-notes-no";
@@ -276,19 +281,37 @@ function ChordSymbols({ measure, staffTop }: { measure: LaidMeasure; staffTop: n
   const m = measure.measure;
   if (m.chords.length === 0) return null;
   const y = staffTop - 18;
-  // Slightly smaller when a walkdown packs 3+ symbols into one bar.
-  const fontSize =
+  const gap = 12;
+  const inset = 10;
+  const minX = measure.x + inset;
+  const maxRight = measure.x + measure.width - inset;
+
+  let fontSize =
     m.chords.length >= 3 ? UNIT.fontChord * 0.82 : m.chords.length === 2 ? UNIT.fontChord * 0.92 : UNIT.fontChord;
+
+  let widths = m.chords.map((c) => estimateChordSymbolWidth(c.symbol, fontSize));
+  const preferred = m.chords.map((c) => {
+    const bx = measure.beatX[c.beat - 1] ?? measure.beatX[0] ?? measure.x + inset;
+    return bx;
+  });
+
+  // Shrink font until every glyph fits without overlap — never stack symbols.
+  for (let attempt = 0; attempt < 8; attempt++) {
+    widths = m.chords.map((c) => estimateChordSymbolWidth(c.symbol, fontSize));
+    if (chordsFitInSpan(widths, minX, maxRight, gap)) break;
+    fontSize *= 0.9;
+    if (fontSize < 16) break;
+  }
+
+  const xs = resolveNonOverlappingChordXs(preferred, widths, minX, maxRight, gap);
+
   return (
     <g fontFamily={SERIF} fontWeight={700} fontSize={fontSize} fill="#000">
-      {m.chords.map((c, i) => {
-        const bx = measure.beatX[c.beat - 1] ?? measure.beatX[0];
-        return (
-          <text key={i} x={measure.x + (bx - measure.x)} y={y} textAnchor="start">
-            {c.symbol}
-          </text>
-        );
-      })}
+      {m.chords.map((c, i) => (
+        <text key={i} x={xs[i]} y={y} textAnchor="start">
+          {c.symbol}
+        </text>
+      ))}
     </g>
   );
 }

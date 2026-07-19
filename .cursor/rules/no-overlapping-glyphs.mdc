@@ -1,0 +1,14 @@
+---
+description: Chord and notation glyphs must never overlap on any chart
+alwaysApply: true
+---
+
+# No overlapping symbols
+
+Global for **every** lead sheet / PDF / live chart:
+
+- Chord symbols, lyrics, notes, and markers must **never** draw on top of each other.
+- Multi-chord bars (`A#m7/G# D#m`) need enough horizontal space: use `intrinsicWidth` / `estimateChordSymbolWidth` and `resolveNonOverlappingChordXs` in `layout.ts` + `ChordSymbols` in `LeadSheetSvg.tsx`.
+- Prefer fewer measures on a system (or slightly smaller chord type) over stacked illegible glyphs.
+- Do not place chords only by beat index without checking glyph width — long symbols like `A#m7/G#` collide when naïvely beat-aligned.
+- When changing engraving, verify dense bars (walkdowns, slash chords) stay readable.

@@ -1,10 +1,12 @@
 import type { NormalizedScore, Measure, EngravedSection } from "./model";
+import { UNIT } from "./renderer/typography";
 
 /**
  * Layout engine — turns normalized sections into justified systems.
  * Units are engraving units (1u = 0.1mm; SVG viewBox uses the same).
  *
- * Widths are INTRINSIC first, then justified to fill the content area.
+ * Widths are INTRINSIC first (must fit chord glyphs without overlap),
+ * then justified to fill the content area.
  */
 
 export interface LaidMeasure {
@@ -32,15 +34,95 @@ export interface System {
 }
 
 const MIN_MEASURE_WIDTH = 180;
-const CHORD_SLOT = 90;
 const REST_WIDTH = 150;
 const SIMILE_WIDTH = 150;
+const CHORD_GAP = 12;
+const MEASURE_INSET = 16;
 
-function intrinsicWidth(m: Measure): number {
+/** Approximate advance width of a bold serif chord glyph string. */
+export function estimateChordSymbolWidth(symbol: string, fontSize: number): number {
+  let w = 0;
+  for (const ch of symbol) {
+    if (ch === "#" || ch === "b" || ch === "/" || ch === "♯" || ch === "♭") w += fontSize * 0.48;
+    else if (ch === "i" || ch === "l" || ch === "1") w += fontSize * 0.38;
+    else if (ch === "m" || ch === "w") w += fontSize * 0.72;
+    else w += fontSize * 0.62;
+  }
+  return Math.max(fontSize * 1.15, w);
+}
+
+function chordFontForCount(n: number): number {
+  if (n >= 3) return UNIT.fontChord * 0.82;
+  if (n === 2) return UNIT.fontChord * 0.92;
+  return UNIT.fontChord;
+}
+
+/** Minimum measure width so every chord glyph can sit without overlapping. */
+export function intrinsicWidth(m: Measure): number {
   if (m.slash === "rest") return REST_WIDTH;
   if (m.slash === "simile") return SIMILE_WIDTH;
-  const chordCount = Math.max(1, m.chords.length);
-  return MIN_MEASURE_WIDTH + (chordCount - 1) * CHORD_SLOT;
+  const n = Math.max(1, m.chords.length);
+  const fontSize = chordFontForCount(n);
+  if (m.chords.length === 0) return MIN_MEASURE_WIDTH;
+  const span = m.chords.reduce(
+    (sum, c, i) =>
+      sum + estimateChordSymbolWidth(c.symbol, fontSize) + (i > 0 ? CHORD_GAP : 0),
+    0,
+  );
+  return Math.max(MIN_MEASURE_WIDTH, MEASURE_INSET * 2 + span);
+}
+
+/**
+ * Place chord left-edges so glyphs never overlap.
+ * Prefers beat-aligned positions, then pushes right / packs left as needed.
+ * Global rule: no chord text may cover another.
+ */
+export function resolveNonOverlappingChordXs(
+  preferredXs: number[],
+  widths: number[],
+  minX: number,
+  maxRight: number,
+  gap: number = CHORD_GAP,
+): number[] {
+  const n = preferredXs.length;
+  if (n === 0) return [];
+  const xs = preferredXs.map((x) => Math.max(minX, x));
+
+  for (let i = 1; i < n; i++) {
+    const minAllowed = xs[i - 1] + widths[i - 1] + gap;
+    if (xs[i] < minAllowed) xs[i] = minAllowed;
+  }
+
+  let lastRight = xs[n - 1] + widths[n - 1];
+  if (lastRight > maxRight) {
+    const overflow = lastRight - maxRight;
+    const roomLeft = Math.max(0, xs[0] - minX);
+    const shift = Math.min(overflow, roomLeft);
+    for (let i = 0; i < n; i++) xs[i] -= shift;
+    lastRight = xs[n - 1] + widths[n - 1];
+  }
+
+  if (lastRight > maxRight) {
+    // Tight pack from the left — still no overlaps; caller may shrink font.
+    xs[0] = minX;
+    for (let i = 1; i < n; i++) {
+      xs[i] = xs[i - 1] + widths[i - 1] + gap;
+    }
+  }
+
+  return xs;
+}
+
+/** True if packed chords fit inside [minX, maxRight]. */
+export function chordsFitInSpan(
+  widths: number[],
+  minX: number,
+  maxRight: number,
+  gap: number = CHORD_GAP,
+): boolean {
+  if (widths.length === 0) return true;
+  const need = widths.reduce((a, w, i) => a + w + (i > 0 ? gap : 0), 0);
+  return minX + need <= maxRight + 0.5;
 }
 
 interface LayoutOpts {
@@ -64,7 +146,7 @@ function buildSystemFromMeasures(
   const laid: LaidMeasure[] = measures.map((m, i) => {
     const w = widths[i];
     const beats = Math.max(1, m.beats);
-    const inset = 18;
+    const inset = MEASURE_INSET;
     const usable = Math.max(0, w - inset * 2);
     const step = beats > 1 ? usable / (beats - 1) : 0;
     const beatX: number[] = [];
@@ -164,24 +246,40 @@ export function wrapLyricToWidth(
   return lines.slice(0, maxLines);
 }
 
+/**
+ * Pack measures into systems: respect max-per-system, but break early when
+ * chord-intrinsic widths would crush glyphs into each other.
+ */
 export function layoutScore(score: NormalizedScore, opts: LayoutOpts): System[] {
   const systems: System[] = [];
   const maxPer = opts.maxMeasuresPerSystem ?? 6;
   const maxWidth = opts.systemContentWidth;
 
   for (const section of score.sections) {
-    const total = section.measures.length;
-    if (total === 0) continue;
-    const numSystems = Math.max(1, Math.ceil(total / maxPer));
-    const base = Math.floor(total / numSystems);
-    const extra = total % numSystems;
-    const lyricPerSystem = distributeLyricLines(section.lyrics, numSystems);
+    if (section.measures.length === 0) continue;
 
-    let idx = 0;
-    for (let s = 0; s < numSystems; s++) {
-      const size = base + (s < extra ? 1 : 0);
-      const slice = section.measures.slice(idx, idx + size);
-      idx += size;
+    const groups: Measure[][] = [];
+    let current: Measure[] = [];
+    let currentW = 0;
+
+    for (const m of section.measures) {
+      const w = intrinsicWidth(m);
+      const nextW = current.length === 0 ? w : currentW + w;
+      if (
+        current.length > 0 &&
+        (current.length >= maxPer || nextW > maxWidth * 1.05)
+      ) {
+        groups.push(current);
+        current = [];
+        currentW = 0;
+      }
+      current.push(m);
+      currentW += intrinsicWidth(m);
+    }
+    if (current.length > 0) groups.push(current);
+
+    const lyricPerSystem = distributeLyricLines(section.lyrics, groups.length);
+    groups.forEach((slice, s) => {
       systems.push(
         buildSystemFromMeasures(
           section,
@@ -191,7 +289,7 @@ export function layoutScore(score: NormalizedScore, opts: LayoutOpts): System[] 
           lyricPerSystem[s],
         ),
       );
-    }
+    });
   }
 
   return systems;

@@ -225,6 +225,7 @@ CRITICAL CHORD FIDELITY (walkdowns / multi-chord bars):
 - NEVER collapse a walkdown or passing bass to a single chord. "C G/B Am" must stay "C G/B Am" — not "Am", not "C".
 - Slash chords (G/B, C/E, D/F#) are real harmony — keep the bass note.
 - Typical loop Dm G C G/B Am → e.g. ["Dm","G","C","G/B Am"] or ["Dm","G","C G/B Am",…] matching how the source groups them — but every printed chord symbol must appear in the output.
+- Do NOT pack many long symbols (A#m7/G#, F#sus4, …) into one bar if the source spreads them — overcrowding makes glyphs overlap. Prefer one chord per bar when the source is spaced that way; only share a bar when UG clearly clusters them.
 - "%" = repeat previous bar; "-" = empty/sustain. Do not invent chords.
 
 Other rules:
