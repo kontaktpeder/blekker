@@ -1,6 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Minus, Plus, Eye, EyeOff, Maximize2, X, Play, Pause, Download } from "lucide-react";
-import { transposeKey, type Song } from "@/lib/music";
+import {
+  Minus,
+  Plus,
+  Eye,
+  EyeOff,
+  Maximize2,
+  X,
+  Play,
+  Pause,
+  Download,
+  Pencil,
+  Check,
+} from "lucide-react";
+import { transposeKey, type Section, type Song } from "@/lib/music";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { SectionCard } from "./SectionCard";
@@ -8,6 +20,7 @@ import { FormStrip } from "./FormStrip";
 import { exportChartPdf } from "@/lib/pdf/exportChartPdf";
 import { ExportDialog } from "./ExportDialog";
 import type { ExportFormat, ExportLayout, LeadSheetVariant } from "@/lib/pdf/layouts";
+import { useUpdateSong } from "@/hooks/useSongs";
 import { toast } from "sonner";
 
 type ViewMode = "full" | "chart" | "form" | "live";
@@ -30,12 +43,25 @@ export function SongChart({ song }: Props) {
   const [scrollSpeed, setScrollSpeed] = useState(0);
   const [exporting, setExporting] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<Song>(song);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const updateSong = useUpdateSong();
 
-  const displayKey = useMemo(() => transposeKey(song.key, semitones), [song.key, semitones]);
+  useEffect(() => {
+    setDraft(song);
+    setEditing(false);
+  }, [song.id]);
+
+  const working = editing ? draft : song;
+  const displayKey = useMemo(
+    () => transposeKey(working.key, semitones),
+    [working.key, semitones],
+  );
   const isLive = mode === "live";
   const showNotes = mode === "full" || mode === "live";
   const lyricsOn = showLyrics && (mode === "full" || mode === "live");
+  const canEdit = mode === "full" && editing;
 
   useEffect(() => {
     if (!isLive || scrollSpeed === 0) return;
@@ -61,12 +87,16 @@ export function SongChart({ song }: Props) {
     if (!isLive) setScrollSpeed(0);
   }, [isLive]);
 
+  useEffect(() => {
+    if (mode !== "full" && editing) setEditing(false);
+  }, [mode, editing]);
+
   async function runExport(opts: { format: ExportFormat; layout: ExportLayout; variant?: LeadSheetVariant }) {
     if (exporting) return;
     setExporting(true);
     const t = toast.loading(opts.format === "pdf" ? "Lager PDF…" : "Lager ark…");
     try {
-      await exportChartPdf({ song, semitones, showLyrics, ...opts });
+      await exportChartPdf({ song: working, semitones, showLyrics, ...opts });
       toast.success(opts.format === "pdf" ? "PDF klar" : "Ark klare", { id: t });
       setExportOpen(false);
     } catch (err) {
@@ -77,32 +107,137 @@ export function SongChart({ song }: Props) {
     }
   }
 
+  function patchSection(id: string, next: Section) {
+    setDraft((d) => ({
+      ...d,
+      sections: d.sections.map((s) => (s.id === id ? next : s)),
+      form: d.sections.map((s) => (s.id === id ? next.name : s.name)),
+    }));
+  }
+
+  async function saveEdits() {
+    const t = toast.loading("Lagrer…");
+    try {
+      await updateSong.mutateAsync({
+        id: draft.id,
+        title: draft.title,
+        artist: draft.artist,
+        key: draft.key,
+        bpm: draft.bpm,
+        capo: draft.capo ?? 0,
+        sections: draft.sections.map((s) => ({
+          id: s.id,
+          type: s.type,
+          name: s.name,
+          bars: s.bars,
+          chords: s.chords,
+          lyrics: s.lyrics ?? null,
+          notes: s.notes ?? null,
+          repeat: s.repeat ?? null,
+        })),
+      });
+      setEditing(false);
+      toast.success("Lagret", { id: t });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Kunne ikke lagre", { id: t });
+    }
+  }
+
+  function startEditing() {
+    setDraft(song);
+    setMode("full");
+    setEditing(true);
+  }
+
+  function cancelEditing() {
+    setDraft(song);
+    setEditing(false);
+  }
+
   return (
     <div className={cn("flex flex-col h-full", isLive && "fixed inset-0 z-50 bg-background")}>
       {!isLive && (
         <header className="border-b border-border/70 bg-background/80 backdrop-blur-md px-5 md:px-8 py-4">
           <div className="flex items-start justify-between gap-6 flex-wrap">
-            <div className="min-w-0">
-              <h1 className="font-semibold tracking-tight leading-none text-balance text-2xl md:text-4xl">
-                {song.title}
-              </h1>
-              <p className="mt-2 font-mono uppercase tracking-[0.18em] text-muted-foreground text-xs md:text-sm">
-                {song.artist}
-              </p>
+            <div className="min-w-0 flex-1">
+              {canEdit ? (
+                <div className="space-y-2 max-w-xl">
+                  <input
+                    value={draft.title}
+                    onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
+                    className="w-full bg-background/60 border border-border rounded-md px-3 py-2 font-semibold tracking-tight text-2xl md:text-4xl outline-none focus:ring-1 focus:ring-primary"
+                  />
+                  <input
+                    value={draft.artist}
+                    onChange={(e) => setDraft((d) => ({ ...d, artist: e.target.value }))}
+                    className="w-full bg-background/60 border border-border rounded-md px-3 py-1.5 font-mono uppercase tracking-[0.18em] text-xs md:text-sm text-muted-foreground outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+              ) : (
+                <>
+                  <h1 className="font-semibold tracking-tight leading-none text-balance text-2xl md:text-4xl">
+                    {working.title}
+                  </h1>
+                  <p className="mt-2 font-mono uppercase tracking-[0.18em] text-muted-foreground text-xs md:text-sm">
+                    {working.artist}
+                  </p>
+                </>
+              )}
             </div>
 
             <div className="flex items-center gap-3 md:gap-5 rounded-lg border border-border bg-card/60 px-4 py-2 font-mono tabular-nums text-sm md:text-base">
-              <Meta label="KEY" value={displayKey} />
-              <div className="ticker-divider" />
-              <Meta label="BPM" value={String(song.bpm)} />
-              <div className="ticker-divider" />
-              <Meta label="CAPO" value={song.capo ? String(song.capo) : "—"} />
-              {song.timeSig && (
+              {canEdit ? (
                 <>
-                  <div className="ticker-divider hidden md:block" />
-                  <div className="hidden md:block">
-                    <Meta label="TIME" value={song.timeSig} />
-                  </div>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[9px] text-muted-foreground tracking-[0.2em]">KEY</span>
+                    <input
+                      value={draft.key}
+                      onChange={(e) => setDraft((d) => ({ ...d, key: e.target.value }))}
+                      className="w-16 bg-background/60 border border-border rounded px-2 py-0.5 outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </label>
+                  <div className="ticker-divider" />
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[9px] text-muted-foreground tracking-[0.2em]">BPM</span>
+                    <input
+                      type="number"
+                      value={draft.bpm}
+                      onChange={(e) =>
+                        setDraft((d) => ({ ...d, bpm: parseInt(e.target.value, 10) || d.bpm }))
+                      }
+                      className="w-16 bg-background/60 border border-border rounded px-2 py-0.5 outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </label>
+                  <div className="ticker-divider" />
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[9px] text-muted-foreground tracking-[0.2em]">CAPO</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={12}
+                      value={draft.capo ?? 0}
+                      onChange={(e) =>
+                        setDraft((d) => ({ ...d, capo: parseInt(e.target.value, 10) || 0 }))
+                      }
+                      className="w-14 bg-background/60 border border-border rounded px-2 py-0.5 outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </label>
+                </>
+              ) : (
+                <>
+                  <Meta label="KEY" value={displayKey} />
+                  <div className="ticker-divider" />
+                  <Meta label="BPM" value={String(working.bpm)} />
+                  <div className="ticker-divider" />
+                  <Meta label="CAPO" value={working.capo ? String(working.capo) : "—"} />
+                  {working.timeSig && (
+                    <>
+                      <div className="ticker-divider hidden md:block" />
+                      <div className="hidden md:block">
+                        <Meta label="TIME" value={working.timeSig} />
+                      </div>
+                    </>
+                  )}
                 </>
               )}
             </div>
@@ -126,25 +261,27 @@ export function SongChart({ song }: Props) {
               ))}
             </div>
 
-            <div className="flex items-center rounded-md border border-border bg-card/60">
-              <button
-                onClick={() => setSemitones((s) => s - 1)}
-                className="p-2 hover:bg-accent rounded-l-md"
-                aria-label="Transpose down"
-              >
-                <Minus className="h-4 w-4" />
-              </button>
-              <div className="px-3 font-mono text-xs md:text-sm tabular-nums w-20 text-center">
-                {semitones === 0 ? "± 0" : semitones > 0 ? `+${semitones}` : semitones} st
+            {!canEdit && (
+              <div className="flex items-center rounded-md border border-border bg-card/60">
+                <button
+                  onClick={() => setSemitones((s) => s - 1)}
+                  className="p-2 hover:bg-accent rounded-l-md"
+                  aria-label="Transpose down"
+                >
+                  <Minus className="h-4 w-4" />
+                </button>
+                <div className="px-3 font-mono text-xs md:text-sm tabular-nums w-20 text-center">
+                  {semitones === 0 ? "± 0" : semitones > 0 ? `+${semitones}` : semitones} st
+                </div>
+                <button
+                  onClick={() => setSemitones((s) => s + 1)}
+                  className="p-2 hover:bg-accent rounded-r-md"
+                  aria-label="Transpose up"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
               </div>
-              <button
-                onClick={() => setSemitones((s) => s + 1)}
-                className="p-2 hover:bg-accent rounded-r-md"
-                aria-label="Transpose up"
-              >
-                <Plus className="h-4 w-4" />
-              </button>
-            </div>
+            )}
 
             <Button
               variant="outline"
@@ -155,6 +292,42 @@ export function SongChart({ song }: Props) {
               {showLyrics ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
               <span className="ml-2">Lyrics</span>
             </Button>
+
+            {mode === "full" && (
+              canEdit ? (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={cancelEditing}
+                    className="font-mono uppercase tracking-wider text-xs"
+                    disabled={updateSong.isPending}
+                  >
+                    Avbryt
+                  </Button>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={saveEdits}
+                    disabled={updateSong.isPending}
+                    className="font-mono uppercase tracking-wider text-xs"
+                  >
+                    <Check className="h-4 w-4 mr-1" />
+                    {updateSong.isPending ? "Lagrer…" : "Lagre"}
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={startEditing}
+                  className="font-mono uppercase tracking-wider text-xs"
+                >
+                  <Pencil className="h-4 w-4 mr-1" />
+                  Rediger
+                </Button>
+              )
+            )}
 
             <div className="ml-auto flex items-center gap-2">
               <Button
@@ -180,7 +353,6 @@ export function SongChart({ song }: Props) {
         </header>
       )}
 
-      {/* Live: same Full structure & CSS, fullscreen */}
       {isLive && (
         <div className="absolute top-4 right-4 z-10 flex flex-wrap items-center justify-end gap-2 rounded-lg border border-border bg-background/80 backdrop-blur-md px-3 py-2 font-mono max-w-[calc(100%-2rem)]">
           <div className="flex items-center gap-3 px-2 tabular-nums text-sm">
@@ -190,7 +362,7 @@ export function SongChart({ song }: Props) {
             </span>
             <span>
               <span className="text-muted-foreground text-[10px] tracking-[0.2em] mr-1">BPM</span>
-              {song.bpm}
+              {working.bpm}
             </span>
           </div>
           <div className="flex items-center border-l border-border pl-2">
@@ -253,21 +425,21 @@ export function SongChart({ song }: Props) {
         {isLive && (
           <div className="mb-8">
             <h1 className="font-semibold tracking-tight leading-none text-balance text-4xl md:text-6xl">
-              {song.title}
+              {working.title}
             </h1>
             <p className="mt-2 font-mono uppercase tracking-[0.18em] text-muted-foreground text-base">
-              {song.artist}
+              {working.artist}
             </p>
             <div className="mt-5 flex flex-wrap items-center gap-3 md:gap-5 rounded-lg border border-border bg-card/60 px-4 py-2 font-mono tabular-nums text-sm md:text-base w-fit">
               <Meta label="KEY" value={displayKey} />
               <div className="ticker-divider" />
-              <Meta label="BPM" value={String(song.bpm)} />
+              <Meta label="BPM" value={String(working.bpm)} />
               <div className="ticker-divider" />
-              <Meta label="CAPO" value={song.capo ? String(song.capo) : "—"} />
-              {song.timeSig && (
+              <Meta label="CAPO" value={working.capo ? String(working.capo) : "—"} />
+              {working.timeSig && (
                 <>
                   <div className="ticker-divider" />
-                  <Meta label="TIME" value={song.timeSig} />
+                  <Meta label="TIME" value={working.timeSig} />
                 </>
               )}
             </div>
@@ -284,20 +456,22 @@ export function SongChart({ song }: Props) {
             >
               Form
             </p>
-            <FormStrip form={song.form} large={isLive} />
+            <FormStrip form={working.form} large={isLive} />
           </div>
         )}
 
         {mode === "form" ? null : (
           <div className={cn("grid gap-4", isLive ? "gap-6" : "md:gap-5")}>
-            {song.sections.map((s) => (
+            {working.sections.map((s) => (
               <SectionCard
                 key={s.id}
                 section={s}
-                semitones={semitones}
+                semitones={canEdit ? 0 : semitones}
                 showLyrics={lyricsOn}
                 showNotes={showNotes}
                 mode={isLive ? "live" : mode === "chart" ? "chart" : "full"}
+                editing={canEdit}
+                onChange={canEdit ? (next) => patchSection(s.id, next) : undefined}
               />
             ))}
           </div>

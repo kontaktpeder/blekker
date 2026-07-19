@@ -5,6 +5,7 @@ import {
   deleteSong,
   getSong,
   listSongs,
+  updateSong,
 } from "@/lib/songs.functions";
 import {
   addSongToSetlist,
@@ -49,7 +50,39 @@ export function useDeleteSong() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => fn({ data: { id } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["songs"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["songs"] });
+      qc.invalidateQueries({ queryKey: ["setlists"] });
+    },
+  });
+}
+
+export function useUpdateSong() {
+  const fn = useServerFn(updateSong);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      id: string;
+      title: string;
+      artist?: string | null;
+      key?: string | null;
+      bpm?: number | null;
+      capo?: number | null;
+      sections: {
+        id?: string;
+        type?: string;
+        name: string;
+        bars?: number;
+        chords: string[];
+        lyrics?: string | null;
+        notes?: string | null;
+        repeat?: number | null;
+      }[];
+    }) => fn({ data: input }),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ["songs"] });
+      qc.invalidateQueries({ queryKey: ["songs", v.id] });
+    },
   });
 }
 

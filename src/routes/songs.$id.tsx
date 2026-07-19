@@ -1,10 +1,11 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useSong, useSongs } from "@/hooks/useSongs";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useDeleteSong, useSong, useSongs } from "@/hooks/useSongs";
 import { SongChart } from "@/components/chart/SongChart";
 import { SetlistSidebar } from "@/components/chart/SetlistSidebar";
 import { dbToSong } from "@/lib/song-mapper";
 import { useState } from "react";
 import type { Song } from "@/lib/music";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/songs/$id")({
   component: SongDetailPage,
@@ -12,8 +13,10 @@ export const Route = createFileRoute("/songs/$id")({
 
 function SongDetailPage() {
   const { id } = Route.useParams();
+  const navigate = useNavigate();
   const { data, isLoading, error } = useSong(id);
   const { data: allSongs } = useSongs();
+  const deleteSong = useDeleteSong();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   if (isLoading) {
@@ -49,6 +52,40 @@ function SongDetailPage() {
       sections: [],
     })) as Song[];
 
+  function confirmDelete(songId: string) {
+    const target = sidebarSongs.find((s) => s.id === songId);
+    const title = target?.title ?? "denne blekka";
+    toast(`Slette «${title}»?`, {
+      description: "Hele chartet slettes permanent. Dette kan ikke angres.",
+      action: {
+        label: "Slett",
+        onClick: () => {
+          const t = toast.loading("Sletter…");
+          deleteSong.mutate(songId, {
+            onSuccess: () => {
+              toast.success("Slettet", { id: t });
+              const remaining = sidebarSongs.filter((s) => s.id !== songId);
+              if (songId === id) {
+                if (remaining[0]) {
+                  navigate({ to: "/songs/$id", params: { id: remaining[0].id } });
+                } else {
+                  navigate({ to: "/songs" });
+                }
+              }
+            },
+            onError: (e) => {
+              toast.error(e instanceof Error ? e.message : "Kunne ikke slette", { id: t });
+            },
+          });
+        },
+      },
+      cancel: {
+        label: "Avbryt",
+        onClick: () => {},
+      },
+    });
+  }
+
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
       <SetlistSidebar
@@ -57,9 +94,10 @@ function SongDetailPage() {
         onSelect={(nid) => {
           setSidebarOpen(false);
           if (nid !== id) {
-            window.location.href = `/songs/${nid}`;
+            navigate({ to: "/songs/$id", params: { id: nid } });
           }
         }}
+        onDelete={confirmDelete}
         open={sidebarOpen}
         onToggle={() => setSidebarOpen((v) => !v)}
       />

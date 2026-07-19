@@ -115,3 +115,11 @@
   font-family: "JetBrains Mono", ui-monospace, "Courier New", monospace;
   tab-size: 4;
 }
+
+/* Touch / iPad: always show setlist delete (no hover) */
+@media (hover: none), (pointer: coarse) {
+  .setlist-delete {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+}

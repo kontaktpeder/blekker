@@ -1,4 +1,4 @@
-import { Music2, Menu } from "lucide-react";
+import { Music2, Menu, Trash2 } from "lucide-react";
 import type { Song } from "@/lib/music";
 import { cn } from "@/lib/utils";
 
@@ -6,14 +6,21 @@ interface Props {
   songs: Song[];
   selectedId: string;
   onSelect: (id: string) => void;
+  onDelete?: (id: string) => void;
   open: boolean;
   onToggle: () => void;
 }
 
-export function SetlistSidebar({ songs, selectedId, onSelect, open, onToggle }: Props) {
+export function SetlistSidebar({
+  songs,
+  selectedId,
+  onSelect,
+  onDelete,
+  open,
+  onToggle,
+}: Props) {
   return (
     <>
-      {/* Mobile / tablet drawer overlay */}
       {open && (
         <div
           className="fixed inset-0 z-40 bg-background/70 backdrop-blur-sm lg:hidden"
@@ -25,7 +32,7 @@ export function SetlistSidebar({ songs, selectedId, onSelect, open, onToggle }: 
         className={cn(
           "z-50 flex flex-col border-r border-border bg-card/40 backdrop-blur-md transition-all duration-200",
           "fixed inset-y-0 left-0 lg:static",
-          open ? "w-72 translate-x-0" : "w-72 -translate-x-full lg:w-14 lg:translate-x-0"
+          open ? "w-72 translate-x-0" : "w-72 -translate-x-full lg:w-14 lg:translate-x-0",
         )}
       >
         <div className="flex items-center gap-2 px-3 h-14 border-b border-border">
@@ -50,38 +57,63 @@ export function SetlistSidebar({ songs, selectedId, onSelect, open, onToggle }: 
               {songs.map((s, i) => {
                 const active = s.id === selectedId;
                 return (
-                  <li key={s.id}>
-                    <button
-                      onClick={() => onSelect(s.id)}
+                  <li key={s.id} className="group/item relative">
+                    <div
                       className={cn(
-                        "w-full text-left rounded-md px-3 py-2.5 transition-colors group flex gap-3 items-start",
+                        "w-full rounded-md transition-colors flex gap-2 items-start",
                         active
                           ? "bg-primary/10 border border-primary/30"
-                          : "hover:bg-accent border border-transparent"
+                          : "hover:bg-accent border border-transparent",
                       )}
                     >
-                      <span
-                        className={cn(
-                          "font-mono text-xs tabular-nums pt-0.5 w-5",
-                          active ? "text-primary" : "text-muted-foreground"
-                        )}
+                      <button
+                        onClick={() => onSelect(s.id)}
+                        className="min-w-0 flex-1 text-left px-3 py-2.5 flex gap-3 items-start"
                       >
-                        {String(i + 1).padStart(2, "0")}
-                      </span>
-                      <span className="min-w-0 flex-1">
                         <span
                           className={cn(
-                            "block truncate text-sm font-medium",
-                            active && "text-primary"
+                            "font-mono text-xs tabular-nums pt-0.5 w-5 shrink-0",
+                            active ? "text-primary" : "text-muted-foreground",
                           )}
                         >
-                          {s.title}
+                          {String(i + 1).padStart(2, "0")}
                         </span>
-                        <span className="block truncate text-xs text-muted-foreground font-mono">
-                          {s.artist} · {s.key} · {s.bpm}
+                        <span className="min-w-0 flex-1">
+                          <span
+                            className={cn(
+                              "block truncate text-sm font-medium",
+                              active && "text-primary",
+                            )}
+                          >
+                            {s.title}
+                          </span>
+                          <span className="block truncate text-xs text-muted-foreground font-mono">
+                            {s.artist} · {s.key} · {s.bpm}
+                          </span>
                         </span>
-                      </span>
-                    </button>
+                      </button>
+
+                      {onDelete && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDelete(s.id);
+                          }}
+                          className={cn(
+                            "setlist-delete shrink-0 m-1.5 p-2 rounded-md text-muted-foreground",
+                            "hover:bg-destructive/15 hover:text-destructive",
+                            "opacity-0 pointer-events-none transition-opacity",
+                            "group-hover/item:opacity-100 group-hover/item:pointer-events-auto",
+                            "focus-visible:opacity-100 focus-visible:pointer-events-auto",
+                          )}
+                          aria-label={`Slett ${s.title}`}
+                          title="Slett blekke"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
                   </li>
                 );
               })}

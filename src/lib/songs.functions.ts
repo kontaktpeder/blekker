@@ -68,6 +68,56 @@ export const deleteSong = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+const UpdateSongSchema = z.object({
+  id: z.string().uuid(),
+  title: z.string().min(1).max(200),
+  artist: z.string().max(200).nullable().optional(),
+  key: z.string().max(8).nullable().optional(),
+  bpm: z.number().int().min(20).max(300).nullable().optional(),
+  capo: z.number().int().min(0).max(12).nullable().optional(),
+  sections: z.array(SectionSchema).min(1),
+});
+
+/** Persist chart edits (title, meta, sections) so PDF export uses the same data. */
+export const updateSong = createServerFn({ method: "POST" })
+  .inputValidator((input: z.infer<typeof UpdateSongSchema>) => UpdateSongSchema.parse(input))
+  .handler(async ({ data }) => {
+    const { error: songErr } = await supabaseAdmin
+      .from("songs")
+      .update({
+        title: data.title,
+        artist: data.artist ?? null,
+        original_key: data.key ?? null,
+        bpm: data.bpm ?? null,
+        capo: data.capo ?? 0,
+      })
+      .eq("id", data.id);
+    if (songErr) throw new Error(songErr.message);
+
+    const { data: arr, error: arrFindErr } = await supabaseAdmin
+      .from("arrangements")
+      .select("id")
+      .eq("song_id", data.id)
+      .order("version", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (arrFindErr) throw new Error(arrFindErr.message);
+    if (!arr) throw new Error("No arrangement found for this song");
+
+    const structure = data.sections.map((s) => s.name);
+    const { error: arrErr } = await supabaseAdmin
+      .from("arrangements")
+      .update({
+        current_key: data.key ?? null,
+        structure,
+        sections: data.sections,
+      })
+      .eq("id", arr.id);
+    if (arrErr) throw new Error(arrErr.message);
+
+    return { ok: true };
+  });
+
 /**
  * generate-chart: takes raw text or a URL, returns strict JSON arrangement,
  * persists song + arrangement, returns the new song id.
