@@ -73,8 +73,8 @@ function NewSongPage() {
           Lag blekke
         </h1>
         <p className="mt-3 text-muted-foreground max-w-xl">
-          Lim inn en lenke til akkordsiden eller bare lim akkorder og tekst rett inn.
-          Stagechart standardiserer den til et lesbart band-chart.
+          Lim inn akkorder og tekst (best: Ultimate Guitar print / chords-over-words).
+          Vi bygger både lyric-sheet for Live og et strukturert band-chart.
         </p>
 
         <div className="mt-8 space-y-5">

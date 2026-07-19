@@ -18,6 +18,7 @@ type DbSong = {
   original_key: string | null;
   bpm: number | null;
   capo: number | null;
+  raw_input?: string | null;
 };
 
 type DbArrangement = {
@@ -75,5 +76,6 @@ export function dbToSong(song: DbSong, arr: DbArrangement | null): Song {
     timeSig: "4/4",
     form: structure,
     sections,
+    sheetSource: song.raw_input?.trim() || undefined,
   };
 }

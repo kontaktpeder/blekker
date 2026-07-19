@@ -60,6 +60,8 @@ export interface Song {
   timeSig?: string;
   form: string[]; // e.g. ["Intro", "Verse", "Chorus", ...]
   sections: Section[];
+  /** Raw chords-over-words / ChordPro / UG paste for lyric-sheet rendering. */
+  sheetSource?: string;
 }
 
 export const SECTION_COLOR: Record<SectionType, string> = {

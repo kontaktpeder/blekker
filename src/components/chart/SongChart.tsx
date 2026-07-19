@@ -5,13 +5,14 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { SectionCard } from "./SectionCard";
 import { FormStrip } from "./FormStrip";
+import { LyricSheet } from "./LyricSheet";
 import { exportChartPdf } from "@/lib/pdf/exportChartPdf";
 import { ExportDialog } from "./ExportDialog";
 import type { ExportFormat, ExportLayout, LeadSheetVariant } from "@/lib/pdf/layouts";
 import { toast } from "sonner";
 
-
 type ViewMode = "full" | "chart" | "form" | "live";
+type LiveLayout = "sheet" | "grid";
 
 const MODES: { id: ViewMode; label: string }[] = [
   { id: "full", label: "Full" },
@@ -31,12 +32,15 @@ export function SongChart({ song }: Props) {
   const [scrollSpeed, setScrollSpeed] = useState(0); // 0=off, 1=slow, 2=med, 3=fast
   const [exporting, setExporting] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [liveLayout, setLiveLayout] = useState<LiveLayout>("sheet");
+  const [sheetFontStep, setSheetFontStep] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const displayKey = useMemo(() => transposeKey(song.key, semitones), [song.key, semitones]);
   const isLive = mode === "live";
-  const showNotes = mode === "full" || mode === "live";
-  const lyricsOn = showLyrics && (mode === "full" || mode === "live");
+  const isLiveSheet = isLive && liveLayout === "sheet";
+  const showNotes = mode === "full" || (isLive && liveLayout === "grid");
+  const lyricsOn = showLyrics && (mode === "full" || (isLive && liveLayout === "grid"));
 
   // Autoscroll: keep a virtual scroll position so slow/medium speeds don't get
   // rounded away by browsers that quantize scrollTop writes per frame.
@@ -64,6 +68,7 @@ export function SongChart({ song }: Props) {
   useEffect(() => {
     if (!isLive) setScrollSpeed(0);
   }, [isLive]);
+
   async function runExport(opts: { format: ExportFormat; layout: ExportLayout; variant?: LeadSheetVariant }) {
     if (exporting) return;
     setExporting(true);
@@ -80,9 +85,14 @@ export function SongChart({ song }: Props) {
     }
   }
 
-
   return (
-    <div className={cn("flex flex-col h-full", isLive && "fixed inset-0 z-50 bg-background")}>
+    <div
+      className={cn(
+        "flex flex-col h-full",
+        isLive && "fixed inset-0 z-50",
+        isLiveSheet ? "live-sheet-bg" : isLive && "bg-background",
+      )}
+    >
       {/* Header — hidden in Live mode for distraction-free fullscreen */}
       {!isLive && (
         <header className="border-b border-border/70 bg-background/80 backdrop-blur-md px-5 md:px-8 py-4">
@@ -123,7 +133,7 @@ export function SongChart({ song }: Props) {
                     "px-3 md:px-4 py-1.5 text-xs md:text-sm font-mono uppercase tracking-wider rounded-[5px] transition-colors",
                     mode === m.id
                       ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground"
+                      : "text-muted-foreground hover:text-foreground",
                   )}
                 >
                   {m.label}
@@ -187,23 +197,79 @@ export function SongChart({ song }: Props) {
 
       {/* Live-mode minimal floating controls */}
       {isLive && (
-        <div className="absolute top-4 right-4 z-10 flex items-center gap-2 rounded-lg border border-border bg-background/70 backdrop-blur-md px-3 py-2 font-mono">
+        <div className="absolute top-4 right-4 z-10 flex flex-wrap items-center justify-end gap-2 rounded-lg border border-border bg-background/80 backdrop-blur-md px-3 py-2 font-mono max-w-[calc(100%-2rem)]">
           <div className="flex items-center gap-3 px-2 tabular-nums text-sm">
-            <span><span className="text-muted-foreground text-[10px] tracking-[0.2em] mr-1">KEY</span>{displayKey}</span>
-            <span><span className="text-muted-foreground text-[10px] tracking-[0.2em] mr-1">BPM</span>{song.bpm}</span>
+            <span>
+              <span className="text-muted-foreground text-[10px] tracking-[0.2em] mr-1">KEY</span>
+              {displayKey}
+            </span>
+            <span>
+              <span className="text-muted-foreground text-[10px] tracking-[0.2em] mr-1">BPM</span>
+              {song.bpm}
+            </span>
           </div>
           <div className="flex items-center border-l border-border pl-2">
-            <button onClick={() => setSemitones((s) => s - 1)} className="p-1.5 hover:bg-accent rounded" aria-label="Transpose down">
+            <button
+              onClick={() => setSemitones((s) => s - 1)}
+              className="p-1.5 hover:bg-accent rounded"
+              aria-label="Transpose down"
+            >
               <Minus className="h-4 w-4" />
             </button>
             <div className="px-2 text-xs tabular-nums w-12 text-center">
               {semitones === 0 ? "±0" : semitones > 0 ? `+${semitones}` : semitones}
             </div>
-            <button onClick={() => setSemitones((s) => s + 1)} className="p-1.5 hover:bg-accent rounded" aria-label="Transpose up">
+            <button
+              onClick={() => setSemitones((s) => s + 1)}
+              className="p-1.5 hover:bg-accent rounded"
+              aria-label="Transpose up"
+            >
               <Plus className="h-4 w-4" />
             </button>
           </div>
-          {/* Autoscroll speed cycle: off → slow → med → fast → off */}
+
+          <div className="flex items-center border-l border-border pl-2 gap-0.5">
+            <button
+              onClick={() => setLiveLayout("sheet")}
+              className={cn(
+                "px-2 py-1 text-[10px] tracking-[0.15em] rounded",
+                liveLayout === "sheet" ? "bg-primary text-primary-foreground" : "hover:bg-accent text-muted-foreground",
+              )}
+              aria-label="Lyric sheet layout"
+            >
+              SHEET
+            </button>
+            <button
+              onClick={() => setLiveLayout("grid")}
+              className={cn(
+                "px-2 py-1 text-[10px] tracking-[0.15em] rounded",
+                liveLayout === "grid" ? "bg-primary text-primary-foreground" : "hover:bg-accent text-muted-foreground",
+              )}
+              aria-label="Chord grid layout"
+            >
+              GRID
+            </button>
+          </div>
+
+          {isLiveSheet && (
+            <div className="flex items-center border-l border-border pl-2">
+              <button
+                onClick={() => setSheetFontStep((s) => Math.max(-3, s - 1))}
+                className="px-2 py-1 text-[10px] tracking-wider hover:bg-accent rounded"
+                aria-label="Smaller font"
+              >
+                −1
+              </button>
+              <button
+                onClick={() => setSheetFontStep((s) => Math.min(4, s + 1))}
+                className="px-2 py-1 text-[10px] tracking-wider hover:bg-accent rounded"
+                aria-label="Larger font"
+              >
+                +1
+              </button>
+            </div>
+          )}
+
           <button
             onClick={() => setScrollSpeed((s) => (s + 1) % 4)}
             className="flex items-center gap-1 px-2 py-1.5 hover:bg-accent rounded border-l border-border ml-1"
@@ -215,13 +281,15 @@ export function SongChart({ song }: Props) {
               {scrollSpeed === 0 ? "OFF" : scrollSpeed === 1 ? "SLOW" : scrollSpeed === 2 ? "MED" : "FAST"}
             </span>
           </button>
-          <button
-            onClick={() => setShowLyrics((v) => !v)}
-            className="p-1.5 hover:bg-accent rounded border-l border-border ml-1 pl-2"
-            aria-label="Toggle lyrics"
-          >
-            {showLyrics ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-          </button>
+          {!isLiveSheet && (
+            <button
+              onClick={() => setShowLyrics((v) => !v)}
+              className="p-1.5 hover:bg-accent rounded border-l border-border ml-1 pl-2"
+              aria-label="Toggle lyrics"
+            >
+              {showLyrics ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+            </button>
+          )}
           <button
             onClick={() => setExportOpen(true)}
             disabled={exporting}
@@ -246,46 +314,51 @@ export function SongChart({ song }: Props) {
         ref={scrollRef}
         className={cn(
           "flex-1 overflow-y-auto",
-          isLive ? "px-2 md:px-6 py-6" : "px-2 md:px-6 py-6"
+          isLiveSheet ? "px-3 md:px-8 py-8 md:py-10" : "px-2 md:px-6 py-6",
         )}
       >
-
-        {isLive && (
-          <div className="mb-8">
-            <h1 className="font-semibold tracking-tight leading-none text-balance text-4xl md:text-6xl">
-              {song.title}
-            </h1>
-            <p className="mt-2 font-mono uppercase tracking-[0.18em] text-muted-foreground text-base">
-              {song.artist}
-            </p>
-          </div>
-        )}
-
-        <div className={cn("mb-6", isLive && "mb-10")}>
-          <p
-            className={cn(
-              "font-mono uppercase tracking-[0.18em] text-muted-foreground mb-3",
-              isLive ? "text-sm" : "text-[10px] md:text-xs"
+        {isLiveSheet ? (
+          <LyricSheet song={song} semitones={semitones} fontStep={sheetFontStep} />
+        ) : (
+          <>
+            {isLive && (
+              <div className="mb-8">
+                <h1 className="font-semibold tracking-tight leading-none text-balance text-4xl md:text-6xl">
+                  {song.title}
+                </h1>
+                <p className="mt-2 font-mono uppercase tracking-[0.18em] text-muted-foreground text-base">
+                  {song.artist}
+                </p>
+              </div>
             )}
-          >
-            Form
-          </p>
-          <FormStrip form={song.form} large={isLive} />
-        </div>
 
-        {mode === "form" ? null : (
-          <div className={cn("grid gap-4", isLive ? "gap-6" : "md:gap-5")}>
-            {song.sections.map((s) => (
-              <SectionCard
-                key={s.id}
-                section={s}
-                semitones={semitones}
-                showLyrics={lyricsOn}
-                showNotes={showNotes}
-                mode={isLive ? "live" : mode === "chart" ? "chart" : "full"}
-              />
-            ))}
-          </div>
+            <div className={cn("mb-6", isLive && "mb-10")}>
+              <p
+                className={cn(
+                  "font-mono uppercase tracking-[0.18em] text-muted-foreground mb-3",
+                  isLive ? "text-sm" : "text-[10px] md:text-xs",
+                )}
+              >
+                Form
+              </p>
+              <FormStrip form={song.form} large={isLive} />
+            </div>
+
+            {mode === "form" ? null : (
+              <div className={cn("grid gap-4", isLive ? "gap-6" : "md:gap-5")}>
+                {song.sections.map((s) => (
+                  <SectionCard
+                    key={s.id}
+                    section={s}
+                    semitones={semitones}
+                    showLyrics={lyricsOn}
+                    showNotes={showNotes}
+                    mode={isLive ? "live" : mode === "chart" ? "chart" : "full"}
+                  />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
       <ExportDialog
@@ -297,7 +370,6 @@ export function SongChart({ song }: Props) {
     </div>
   );
 }
-
 
 function Meta({ label, value }: { label: string; value: string }) {
   return (

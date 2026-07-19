@@ -198,7 +198,9 @@ Rules:
 
     const arrangement = ArrangementSchema.parse(parsed);
 
-    // 3) Persist
+    // 3) Persist — keep the chord/lyric source for UG-style lyric sheets
+    const sheetSource = (data.rawInput?.trim() || source).slice(0, 50000);
+
     const { data: song, error: songErr } = await supabaseAdmin
       .from("songs")
       .insert({
@@ -208,7 +210,7 @@ Rules:
         bpm: arrangement.bpm ?? null,
         capo: arrangement.capo ?? 0,
         source_url: data.sourceUrl ?? null,
-        raw_input: data.rawInput ?? null,
+        raw_input: sheetSource || null,
       })
       .select()
       .single();
