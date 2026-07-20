@@ -8,10 +8,11 @@ import {
   resolveNonOverlappingChordXs,
   chordsFitInSpan,
 } from "../layout";
-import { UNIT, SERIF } from "./typography";
+import { UNIT, STAGE_UNIT, SERIF, type EngravingUnits } from "./typography";
 import { KEY_ACCIDENTALS } from "./glyphs";
 import { localizeBandNotes } from "@/lib/band-notes-no";
 import { CHART_THEMES, type ChartThemeId } from "./theme";
+import { createContext, useContext } from "react";
 
 interface Props {
   score: NormalizedScore;
@@ -24,10 +25,33 @@ interface Props {
   pageHeights?: number[];
   /** Single continuous scroll surface (no page gaps). */
   continuous?: boolean;
+  /**
+   * Stage Live: section labels above the staff (not left column),
+   * larger type, thicker strokes. Must match LiveLeadSheet content width.
+   */
+  stageLayout?: boolean;
 }
 
-/* --- Musical prefix widths (must match LeadSheetChart) ------------------- */
-const LABEL_W = 170;
+type EngravingCtx = {
+  units: EngravingUnits;
+  /** Width reserved left of clef for section labels (0 on stage). */
+  labelColumn: number;
+  /** Place Intro/Vers/… above the system instead of in the left margin. */
+  labelAbove: boolean;
+};
+
+const EngravingContext = createContext<EngravingCtx>({
+  units: UNIT,
+  labelColumn: 170,
+  labelAbove: false,
+});
+
+function useEngraving() {
+  return useContext(EngravingContext);
+}
+
+/* --- Musical prefix widths (must match LeadSheetChart / LiveLeadSheet) --- */
+const PRINT_LABEL_W = 170;
 const CLEF_W = 84;
 const KEYSIG_STEP = 20;
 const TIMESIG_W = 56;
@@ -40,9 +64,10 @@ function keySigWidth(key: string): number {
 
 /* --- SVG helpers ---------------------------------------------------------- */
 function StaffLines({ x, y, w }: { x: number; y: number; w: number }) {
+  const { units: u } = useEngraving();
   const lines = [];
   for (let i = 0; i < 5; i++) {
-    const ly = y + i * UNIT.staffLine;
+    const ly = y + i * u.staffLine;
     lines.push(
       <line
         key={i}
@@ -51,7 +76,7 @@ function StaffLines({ x, y, w }: { x: number; y: number; w: number }) {
         y1={ly}
         y2={ly}
         stroke="var(--chart-ink)"
-        strokeWidth={1.4}
+        strokeWidth={u.strokeStaff}
       />,
     );
   }
@@ -59,8 +84,9 @@ function StaffLines({ x, y, w }: { x: number; y: number; w: number }) {
 }
 
 function TrebleClef({ x, y }: { x: number; y: number }) {
+  const { units: u } = useEngraving();
   // Y is the staff top. Clef sits centered on the G-line (2nd from bottom).
-  const cy = y + UNIT.staffLine * 3;
+  const cy = y + u.staffLine * 3;
   return (
     <text
       x={x}
@@ -101,17 +127,18 @@ function KeySignature({ x, y, keyName }: { x: number; y: number; keyName: string
 }
 
 function TimeSignature({ x, y, ts }: { x: number; y: number; ts: string }) {
+  const { units: u } = useEngraving();
   const [num, den] = ts.split("/");
   const cx = x + TIMESIG_W / 2;
-  const fs = UNIT.fontTimeSig;
+  const fs = u.fontTimeSig;
   // Digits centered in upper / lower staff halves (staff height = 4×staffLine).
   // Baselines chosen so Georgia bold stays inside the five lines when rasterized.
   return (
     <g fontFamily={SERIF} fontWeight={700} fontSize={fs} fill="var(--chart-ink)" textAnchor="middle">
-      <text x={cx} y={y + UNIT.staffLine * 2 - 2}>
+      <text x={cx} y={y + u.staffLine * 2 - 2}>
         {num}
       </text>
-      <text x={cx} y={y + UNIT.staffLine * 4 - 2}>
+      <text x={cx} y={y + u.staffLine * 4 - 2}>
         {den ?? "4"}
       </text>
     </g>
@@ -149,12 +176,25 @@ function wrapSectionLabel(label: string, maxWidth: number, fontSize: number): st
   return lines.slice(0, 2);
 }
 
-function SectionLabel({ x, y, label }: { x: number; y: number; label: string }) {
-  const maxW = LABEL_W - 24;
-  const lines = wrapSectionLabel(label, maxW, UNIT.fontSection);
-  const lineH = UNIT.fontSection * 1.15;
-  // Sit above the staff in the left margin so staff lines never cut through the label.
-  const baseY = y - 10 - (lines.length - 1) * lineH;
+function SectionLabel({
+  x,
+  y,
+  label,
+  maxWidth,
+}: {
+  x: number;
+  y: number;
+  label: string;
+  /** When set (stage), label sits on its own row and can use full staff width. */
+  maxWidth?: number;
+}) {
+  const { units: u, labelAbove, labelColumn } = useEngraving();
+  const maxW = maxWidth ?? Math.max(80, labelColumn - 24);
+  const lines = wrapSectionLabel(label, maxW, u.fontSection);
+  const lineH = u.fontSection * 1.15;
+  // labelAbove: y is the baseline of the first line in the reserved label band.
+  // else: sit just above the staff in the left margin.
+  const baseY = labelAbove ? y : y - 10 - (lines.length - 1) * lineH;
   return (
     <g>
       {lines.map((line, i) => (
@@ -163,8 +203,9 @@ function SectionLabel({ x, y, label }: { x: number; y: number; label: string }) 
           x={x}
           y={baseY + i * lineH}
           fontFamily={SERIF}
-          fontSize={UNIT.fontSection}
+          fontSize={u.fontSection}
           fontStyle="italic"
+          fontWeight={700}
           fill="var(--chart-ink)"
         >
           {line}
@@ -172,29 +213,30 @@ function SectionLabel({ x, y, label }: { x: number; y: number; label: string }) 
       ))}
       <line
         x1={x}
-        x2={x + maxW}
+        x2={x + Math.min(maxW, labelAbove ? 280 : maxW)}
         y1={baseY + (lines.length - 1) * lineH + 10}
         y2={baseY + (lines.length - 1) * lineH + 10}
         stroke="var(--chart-ink)"
-        strokeWidth={1}
+        strokeWidth={labelAbove ? 2 : 1}
       />
     </g>
   );
 }
 
 function Slashes({ measure, x, w, staffY }: { measure: LaidMeasure; x: number; w: number; staffY: number }) {
+  const { units: u } = useEngraving();
   const m = measure.measure;
   if (m.slash === "rest") {
     // Whole-bar rest: filled block hanging from 2nd line from top.
     const cx = x + w / 2;
     return (
-      <rect x={cx - 10} y={staffY + UNIT.staffLine} width={20} height={UNIT.staffLine * 0.55} fill="var(--chart-ink)" />
+      <rect x={cx - 10} y={staffY + u.staffLine} width={20} height={u.staffLine * 0.55} fill="var(--chart-ink)" />
     );
   }
   if (m.slash === "simile") {
     // Simile mark: two dots + diagonal
     const cx = x + w / 2;
-    const cy = staffY + UNIT.staffHeight / 2;
+    const cy = staffY + u.staffHeight / 2;
     return (
       <g>
         <line x1={cx - 14} y1={cy + 12} x2={cx + 14} y2={cy - 12} stroke="var(--chart-ink)" strokeWidth={2.4} />
@@ -204,7 +246,7 @@ function Slashes({ measure, x, w, staffY }: { measure: LaidMeasure; x: number; w
     );
   }
   // Slash notation — one slash per beat, sitting on the middle staff line.
-  const midY = staffY + UNIT.staffHeight / 2;
+  const midY = staffY + u.staffHeight / 2;
   const inset = 18;
   const usable = w - inset * 2;
   const beats = m.beats;
@@ -220,7 +262,7 @@ function Slashes({ measure, x, w, staffY }: { measure: LaidMeasure; x: number; w
         x2={cx + 7}
         y2={midY - 10}
         stroke="var(--chart-ink)"
-        strokeWidth={2.6}
+        strokeWidth={u.strokeSlash}
         strokeLinecap="round"
       />,
     );
@@ -239,30 +281,31 @@ function Barline({
   height: number;
   kind: "single" | "final" | "section" | "repeat-start" | "repeat-end";
 }) {
+  const { units: u } = useEngraving();
   if (kind === "final") {
     return (
       <g>
-        <line x1={x - 6} x2={x - 6} y1={y} y2={y + height} stroke="var(--chart-ink)" strokeWidth={1.4} />
-        <line x1={x} x2={x} y1={y} y2={y + height} stroke="var(--chart-ink)" strokeWidth={4} />
+        <line x1={x - 6} x2={x - 6} y1={y} y2={y + height} stroke="var(--chart-ink)" strokeWidth={u.strokeBar} />
+        <line x1={x} x2={x} y1={y} y2={y + height} stroke="var(--chart-ink)" strokeWidth={u.strokeBarThick} />
       </g>
     );
   }
   if (kind === "section") {
     return (
       <g>
-        <line x1={x - 4} x2={x - 4} y1={y} y2={y + height} stroke="var(--chart-ink)" strokeWidth={1.4} />
-        <line x1={x} x2={x} y1={y} y2={y + height} stroke="var(--chart-ink)" strokeWidth={1.4} />
+        <line x1={x - 4} x2={x - 4} y1={y} y2={y + height} stroke="var(--chart-ink)" strokeWidth={u.strokeBar} />
+        <line x1={x} x2={x} y1={y} y2={y + height} stroke="var(--chart-ink)" strokeWidth={u.strokeBar} />
       </g>
     );
   }
   if (kind === "repeat-start") {
     // Thick | thin then dots facing into the music
-    const d1 = y + UNIT.staffLine * 1.5;
-    const d2 = y + UNIT.staffLine * 2.5;
+    const d1 = y + u.staffLine * 1.5;
+    const d2 = y + u.staffLine * 2.5;
     return (
       <g>
-        <line x1={x} x2={x} y1={y} y2={y + height} stroke="var(--chart-ink)" strokeWidth={4} />
-        <line x1={x + 7} x2={x + 7} y1={y} y2={y + height} stroke="var(--chart-ink)" strokeWidth={1.4} />
+        <line x1={x} x2={x} y1={y} y2={y + height} stroke="var(--chart-ink)" strokeWidth={u.strokeBarThick} />
+        <line x1={x + 7} x2={x + 7} y1={y} y2={y + height} stroke="var(--chart-ink)" strokeWidth={u.strokeBar} />
         <circle cx={x + 16} cy={d1} r={2.8} fill="var(--chart-ink)" />
         <circle cx={x + 16} cy={d2} r={2.8} fill="var(--chart-ink)" />
       </g>
@@ -270,31 +313,32 @@ function Barline({
   }
   if (kind === "repeat-end") {
     // Dots then thin | thick
-    const d1 = y + UNIT.staffLine * 1.5;
-    const d2 = y + UNIT.staffLine * 2.5;
+    const d1 = y + u.staffLine * 1.5;
+    const d2 = y + u.staffLine * 2.5;
     return (
       <g>
         <circle cx={x - 16} cy={d1} r={2.8} fill="var(--chart-ink)" />
         <circle cx={x - 16} cy={d2} r={2.8} fill="var(--chart-ink)" />
-        <line x1={x - 7} x2={x - 7} y1={y} y2={y + height} stroke="var(--chart-ink)" strokeWidth={1.4} />
-        <line x1={x} x2={x} y1={y} y2={y + height} stroke="var(--chart-ink)" strokeWidth={4} />
+        <line x1={x - 7} x2={x - 7} y1={y} y2={y + height} stroke="var(--chart-ink)" strokeWidth={u.strokeBar} />
+        <line x1={x} x2={x} y1={y} y2={y + height} stroke="var(--chart-ink)" strokeWidth={u.strokeBarThick} />
       </g>
     );
   }
-  return <line x1={x} x2={x} y1={y} y2={y + height} stroke="var(--chart-ink)" strokeWidth={1.4} />;
+  return <line x1={x} x2={x} y1={y} y2={y + height} stroke="var(--chart-ink)" strokeWidth={u.strokeBar} />;
 }
 
 function ChordSymbols({ measure, staffTop }: { measure: LaidMeasure; staffTop: number }) {
+  const { units: u } = useEngraving();
   const m = measure.measure;
   if (m.chords.length === 0) return null;
-  const y = staffTop - 18;
+  const y = staffTop - Math.max(18, Math.round(u.fontChord * 0.4));
   const gap = 12;
   const inset = 10;
   const minX = measure.x + inset;
   const maxRight = measure.x + measure.width - inset;
 
   let fontSize =
-    m.chords.length >= 3 ? UNIT.fontChord * 0.82 : m.chords.length === 2 ? UNIT.fontChord * 0.92 : UNIT.fontChord;
+    m.chords.length >= 3 ? u.fontChord * 0.82 : m.chords.length === 2 ? u.fontChord * 0.92 : u.fontChord;
 
   let widths = m.chords.map((c) => estimateChordSymbolWidth(c.symbol, fontSize));
   const preferred = m.chords.map((c) => {
@@ -307,7 +351,7 @@ function ChordSymbols({ measure, staffTop }: { measure: LaidMeasure; staffTop: n
     widths = m.chords.map((c) => estimateChordSymbolWidth(c.symbol, fontSize));
     if (chordsFitInSpan(widths, minX, maxRight, gap)) break;
     fontSize *= 0.9;
-    if (fontSize < 16) break;
+    if (fontSize < Math.max(16, u.fontChord * 0.55)) break;
   }
 
   const xs = resolveNonOverlappingChordXs(preferred, widths, minX, maxRight, gap);
@@ -324,13 +368,14 @@ function ChordSymbols({ measure, staffTop }: { measure: LaidMeasure; staffTop: n
 }
 
 function MarkerRow({ measure, staffTop }: { measure: LaidMeasure; staffTop: number }) {
+  const { units: u } = useEngraving();
   const m = measure.measure;
   const visible = m.markers.filter((mk) => mk.kind !== "repeat-start");
   if (visible.length === 0) return null;
   // Sit just above chord symbols
-  const y = staffTop - UNIT.chordRow + 14;
+  const y = staffTop - u.chordRow + 14;
   return (
-    <g fontFamily={SERIF} fontStyle="italic" fontSize={UNIT.fontMarker} fill="var(--chart-ink)">
+    <g fontFamily={SERIF} fontStyle="italic" fontSize={u.fontMarker} fill="var(--chart-ink)">
       {visible.map((mk, i) => {
         if (mk.kind === "repeat-end") {
           return (
@@ -379,6 +424,7 @@ function SectionNotes({
   staffTop: number;
   maxWidth: number;
 }) {
+  const { units: u } = useEngraving();
   const cleaned = localizeBandNotes(
     notes
       .replace(/\b(D\.C\.|D\.S\.|Fine|To\s*Coda|Coda|Segno|Fermata)\b/gi, "")
@@ -387,7 +433,7 @@ function SectionNotes({
   );
   if (!cleaned) return null;
 
-  const maxChars = Math.max(28, Math.floor(maxWidth / (UNIT.fontNotes * 0.48)));
+  const maxChars = Math.max(28, Math.floor(maxWidth / (u.fontNotes * 0.48)));
   const lines: string[] = [];
   let cur = "";
   for (const wd of cleaned.split(/\s+/)) {
@@ -406,12 +452,12 @@ function SectionNotes({
   }
   if (cur) lines.push(cur);
 
-  const lineH = UNIT.fontNotes * 1.2;
+  const lineH = u.fontNotes * 1.2;
   // Sit in the dedicated notes band above the chord row — not on measure numbers.
-  const baseY = staffTop - UNIT.chordRow - 14 - (lines.length - 1) * lineH;
+  const baseY = staffTop - u.chordRow - 14 - (lines.length - 1) * lineH;
 
   return (
-    <g fontFamily={SERIF} fontStyle="italic" fontSize={UNIT.fontNotes} fill="var(--chart-ink)">
+    <g fontFamily={SERIF} fontStyle="italic" fontSize={u.fontNotes} fill="var(--chart-ink)">
       {lines.slice(0, 2).map((line, i) => (
         <text key={i} x={x} y={baseY + i * lineH} fontWeight={500}>
           {line}
@@ -442,17 +488,18 @@ function MeasureNumber({
   /** When band notes occupy the upper band, keep numbers just above chords. */
   liftForNotes: boolean;
 }) {
+  const { units: u } = useEngraving();
   const n = measure.measure.number;
   if (!forceShow && n % 4 !== 1) return null;
   // Default: above chord glyphs. With notes present, stay in the chord band
   // so we never collide with SectionNotes.
-  const y = liftForNotes ? staffTop - 34 : staffTop - UNIT.chordRow - 12;
+  const y = liftForNotes ? staffTop - 34 : staffTop - u.chordRow - 12;
   return (
     <text
       x={measure.x + 2}
       y={y}
       fontFamily={SERIF}
-      fontSize={UNIT.fontMeasureNo}
+      fontSize={u.fontMeasureNo}
       fontWeight={600}
       fill="var(--chart-muted)"
     >
@@ -474,19 +521,20 @@ function LyricLine({
   lyricGapScale: number;
   contentWidth: number;
 }) {
+  const { units: u } = useEngraving();
   if (!lyrics.trim()) return null;
-  const gap = UNIT.lyricGap * lyricGapScale;
-  const fontSize = UNIT.fontLyric * Math.max(0.92, lyricGapScale);
+  const gap = u.lyricGap * lyricGapScale;
+  const fontSize = u.fontLyric * Math.max(0.92, lyricGapScale);
   const startX = system.measures[0]?.x ?? 0;
   const lines = wrapLyricToWidth(
     lyrics,
     contentWidth,
     fontSize,
-    UNIT.lyricCharWidth,
-    UNIT.maxLyricWrapLines,
+    u.lyricCharWidth,
+    u.maxLyricWrapLines,
   );
   const lineH = fontSize * 1.2;
-  const y0 = staffTop + UNIT.staffHeight + gap;
+  const y0 = staffTop + u.staffHeight + gap;
 
   return (
     <g fontFamily={SERIF} fontStyle="italic" fontSize={fontSize} fill="var(--chart-ink)">
@@ -515,14 +563,16 @@ function SystemBlock({
   showLyrics: boolean;
   density: DensityPreset;
 }) {
+  const { units: u, labelColumn, labelAbove } = useEngraving();
   const sys = positioned.system;
   const originX = positioned.x;
   const hasNotes = !!sys.sectionNotes?.trim();
-  const notesPad = hasNotes ? UNIT.notesRow + 18 : 0;
-  const staffTop = positioned.y + notesPad + UNIT.chordRow;
+  const notesPad = hasNotes ? u.notesRow + 18 : 0;
+  const labelPad =
+    labelAbove && sys.isSectionStart ? u.sectionLabelAbove : 0;
+  const staffTop = positioned.y + labelPad + notesPad + u.chordRow;
 
-  const labelX = originX;
-  const clefX = originX + LABEL_W;
+  const clefX = originX + labelColumn;
   const keyX = clefX + CLEF_W;
   const kw = keySigWidth(score.header.key);
   const timeX = keyX + kw;
@@ -535,7 +585,12 @@ function SystemBlock({
   return (
     <g>
       {sys.isSectionStart && (
-        <SectionLabel x={labelX} y={staffTop} label={sys.sectionLabel} />
+        <SectionLabel
+          x={labelAbove ? originX : originX}
+          y={labelAbove ? positioned.y + u.fontSection : staffTop}
+          label={sys.sectionLabel}
+          maxWidth={labelAbove ? measuresStartX + measuresWidth - originX : undefined}
+        />
       )}
 
       {sys.isSectionStart && sys.sectionNotes && (
@@ -552,7 +607,7 @@ function SystemBlock({
       <KeySignature x={keyX} y={staffTop} keyName={score.header.key} />
       {showTimeSig && <TimeSignature x={timeX} y={staffTop} ts={score.header.timeSig} />}
 
-      <Barline x={measuresStartX} y={staffTop} height={UNIT.staffHeight} kind={openKind} />
+      <Barline x={measuresStartX} y={staffTop} height={u.staffHeight} kind={openKind} />
 
       {sys.measures.map((lm, i) => {
         const shifted: LaidMeasure = {
@@ -581,7 +636,7 @@ function SystemBlock({
             <MarkerRow measure={shifted} staffTop={staffTop} />
             <ChordSymbols measure={shifted} staffTop={staffTop} />
             <Slashes measure={shifted} x={shifted.x} w={shifted.width} staffY={staffTop} />
-            <Barline x={barX} y={staffTop} height={UNIT.staffHeight} kind={barlineKind} />
+            <Barline x={barX} y={staffTop} height={u.staffHeight} kind={barlineKind} />
           </g>
         );
       })}
@@ -608,6 +663,7 @@ function SystemBlock({
 
 /* --- Header block -------------------------------------------------------- */
 function Header({ score, density }: { score: NormalizedScore; density: DensityPreset }) {
+  const { units: u } = useEngraving();
   const h = score.header;
   const cx = PAGE.width / 2;
   const top = density.marginTop;
@@ -627,7 +683,7 @@ function Header({ score, density }: { score: NormalizedScore; density: DensityPr
         y={top + 52}
         textAnchor="middle"
         fontFamily={SERIF}
-        fontSize={UNIT.fontTitle}
+        fontSize={u.fontTitle}
         fontWeight={700}
         fill="var(--chart-ink)"
       >
@@ -640,7 +696,7 @@ function Header({ score, density }: { score: NormalizedScore; density: DensityPr
           textAnchor="end"
           fontFamily={SERIF}
           fontStyle="italic"
-          fontSize={UNIT.fontArtist}
+          fontSize={u.fontArtist}
           fill="var(--chart-ink)"
         >
           {h.artist}
@@ -651,7 +707,7 @@ function Header({ score, density }: { score: NormalizedScore; density: DensityPr
         y={top + 96}
         textAnchor="middle"
         fontFamily={SERIF}
-        fontSize={UNIT.fontMeta}
+        fontSize={u.fontMeta}
         fill="var(--chart-ink)"
       >
         {meta}
@@ -677,6 +733,7 @@ export function LeadSheetSvg({
   theme = "paper",
   pageHeights,
   continuous = false,
+  stageLayout = false,
 }: Props) {
   const t = CHART_THEMES[theme];
   const cssVars = {
@@ -684,49 +741,56 @@ export function LeadSheetSvg({
     ["--chart-muted" as string]: t.muted,
     ["--chart-page" as string]: t.page,
   };
+  const engraving: EngravingCtx = {
+    units: stageLayout ? STAGE_UNIT : UNIT,
+    labelColumn: stageLayout ? 0 : PRINT_LABEL_W,
+    labelAbove: stageLayout,
+  };
 
   return (
-    <div style={{ background: t.page, ...cssVars }}>
-      {pages.map((page) => {
-        const pageH = pageHeights?.[page.index] ?? PAGE.height;
-        return (
-          <div
-            key={page.index}
-            data-pdf-section
-            style={{
-              width: continuous ? "100%" : `${PAGE.width / 10}mm`,
-              background: t.page,
-              marginBottom: continuous ? 0 : 24,
-            }}
-          >
-            {/* CSS vars must live on <svg> so PDF export (standalone SVG→PNG) keeps strokes. */}
-            <svg
-              viewBox={`0 0 ${PAGE.width} ${pageH}`}
-              width="100%"
-              xmlns="http://www.w3.org/2000/svg"
-              style={{ display: "block", background: t.page, ...cssVars }}
+    <EngravingContext.Provider value={engraving}>
+      <div style={{ background: t.page, ...cssVars }}>
+        {pages.map((page) => {
+          const pageH = pageHeights?.[page.index] ?? PAGE.height;
+          return (
+            <div
+              key={page.index}
+              data-pdf-section
+              style={{
+                width: continuous ? "100%" : `${PAGE.width / 10}mm`,
+                background: t.page,
+                marginBottom: continuous ? 0 : 24,
+              }}
             >
-              <rect x={0} y={0} width={PAGE.width} height={pageH} fill={t.page} />
-              {page.showHeader && <Header score={score} density={density} />}
-              {page.systems.map((ps, i) => {
-                // Time signature only at the very start of the piece (bar 1).
-                const showTimeSig = ps.system.measures[0]?.measure.number === 1;
-                return (
-                  <SystemBlock
-                    key={i}
-                    positioned={ps}
-                    totalMeasures={score.totalMeasures}
-                    showTimeSig={showTimeSig}
-                    score={score}
-                    showLyrics={showLyrics}
-                    density={density}
-                  />
-                );
-              })}
-            </svg>
-          </div>
-        );
-      })}
-    </div>
+              {/* CSS vars must live on <svg> so PDF export (standalone SVG→PNG) keeps strokes. */}
+              <svg
+                viewBox={`0 0 ${PAGE.width} ${pageH}`}
+                width="100%"
+                xmlns="http://www.w3.org/2000/svg"
+                style={{ display: "block", background: t.page, ...cssVars }}
+              >
+                <rect x={0} y={0} width={PAGE.width} height={pageH} fill={t.page} />
+                {page.showHeader && <Header score={score} density={density} />}
+                {page.systems.map((ps, i) => {
+                  // Time signature only at the very start of the piece (bar 1).
+                  const showTimeSig = ps.system.measures[0]?.measure.number === 1;
+                  return (
+                    <SystemBlock
+                      key={i}
+                      positioned={ps}
+                      totalMeasures={score.totalMeasures}
+                      showTimeSig={showTimeSig}
+                      score={score}
+                      showLyrics={showLyrics}
+                      density={density}
+                    />
+                  );
+                })}
+              </svg>
+            </div>
+          );
+        })}
+      </div>
+    </EngravingContext.Provider>
   );
 }

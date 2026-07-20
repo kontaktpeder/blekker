@@ -16,26 +16,38 @@ interface Props {
   showLyrics: boolean;
 }
 
-const LABEL_W = 170;
+/** No left section column — clef + key + time only (matches stageLayout). */
 const CLEF_W = 84;
 const TIMESIG_W = 56;
 const KEYSIG_STEP = 20;
 
 function systemContentWidth(keyName: string): number {
   const kw = (KEY_ACCIDENTALS[keyName]?.count ?? 0) * KEYSIG_STEP;
-  const prefix = LABEL_W + CLEF_W + kw + TIMESIG_W;
-  return PAGE.width - PAGE.marginX * 2 - prefix;
+  const prefix = CLEF_W + kw + TIMESIG_W;
+  return PAGE.width - PAGE.stageMarginX * 2 - prefix;
 }
 
-/** Dark continuous lead sheet — iPad content width on all devices. */
+/** Stage density: fewer bars per system so chords stay large. */
+const STAGE_DENSITY = {
+  ...DENSITY_PRESETS[0],
+  id: "stage",
+  systemGap: 72,
+  heightScale: 1.05,
+  lyricGapScale: 1,
+  maxMeasuresPerSystem: 3,
+  headerHeight: 200,
+  marginTop: 72,
+};
+
+/** Dark continuous lead sheet — full-width music, labels above, large type. */
 export function LiveLeadSheet({ song, semitones, showLyrics }: Props) {
   const { score, pages, density, pageHeight } = useMemo(() => {
     const normalized = normalizeSong(song, semitones);
-    // Roomy: readable on stage without A4 page packing.
     const fitted = layoutContinuousLeadSheet(
       normalized,
       systemContentWidth(normalized.header.key),
-      DENSITY_PRESETS[1],
+      STAGE_DENSITY,
+      { stage: true },
     );
     return {
       score: normalized,
@@ -58,6 +70,7 @@ export function LiveLeadSheet({ song, semitones, showLyrics }: Props) {
         theme="stage"
         pageHeights={[pageHeight]}
         continuous
+        stageLayout
       />
     </div>
   );

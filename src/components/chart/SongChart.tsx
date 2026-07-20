@@ -150,8 +150,8 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
     if (!isLive || scrollSpeed === 0) return;
     const el = scrollRef.current;
     if (!el) return;
-    // Stage-readable speeds (px/s) — tight band between slow and fast.
-    const pxPerSec = scrollSpeed === 1 ? 85 : scrollSpeed === 2 ? 120 : 155;
+    // ~1 page (~1200px at iPad width) in ~4 / 3 / 2 minutes.
+    const pxPerSec = scrollSpeed === 1 ? 5 : scrollSpeed === 2 ? 7 : 10;
     let raf = 0;
     let last = performance.now();
     /** Pause only on real user input — not on our own scrollTop writes. */
@@ -593,13 +593,13 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
       <div
         ref={scrollRef}
         className={cn(
-          "flex-1 overflow-y-auto px-2 md:px-6 py-6",
-          isLive && "bg-[#0a0a0c]",
+          "flex-1 overflow-y-auto py-6",
+          isLive ? "px-1 md:px-2 bg-[#0a0a0c]" : "px-2 md:px-6",
           isLive && hasSetlist && "pb-28",
         )}
       >
         {isLive ? (
-          <div className="mx-auto w-full space-y-6" style={{ maxWidth: 834 }}>
+          <div className="mx-auto w-full space-y-5" style={{ maxWidth: 834 }}>
             <div className="flex flex-wrap items-center gap-3 md:gap-4 rounded-lg border border-white/10 bg-black/40 px-4 py-2.5 font-mono tabular-nums text-sm w-fit">
               <div className="flex items-center gap-2.5">
                 <TempoPulse bpm={working.bpm} size="md" />

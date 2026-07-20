@@ -1,13 +1,15 @@
 import type { NormalizedScore } from "./model";
 import type { System } from "./layout";
 import { layoutScore, wrapLyricToWidth } from "./layout";
-import { UNIT } from "./renderer/typography";
+import { UNIT, STAGE_UNIT, type EngravingUnits } from "./renderer/typography";
 
 /** All units in engraving units (0.1mm). A4 = 2100 × 2970. */
 export const PAGE = {
   width: 2100,
   height: 2970,
   marginX: 120,
+  /** Tighter side margins for Live stage (more music width). */
+  stageMarginX: 56,
   marginTop: 100,
   marginBottom: 120,
   headerHeight: 200,
@@ -104,13 +106,20 @@ export function countLyricLines(lyrics: string | undefined, contentWidth: number
 export function systemBlockHeight(
   sys: System,
   density: DensityPreset = DENSITY_PRESETS[0],
+  units: EngravingUnits = UNIT,
+  opts?: { sectionLabelAbove?: boolean },
 ): number {
   const lyricLines = countLyricLines(sys.sectionLyrics, sys.contentWidth);
-  const notesExtra = sys.sectionNotes?.trim() ? UNIT.notesRow + 22 : 0;
-  const lyricGap = UNIT.lyricGap * density.lyricGapScale;
-  const lineH = UNIT.fontLyric * 1.2 * density.lyricGapScale;
+  const notesExtra = sys.sectionNotes?.trim() ? units.notesRow + 22 : 0;
+  const labelExtra =
+    opts?.sectionLabelAbove && sys.isSectionStart ? units.sectionLabelAbove : 0;
+  const lyricGap = units.lyricGap * density.lyricGapScale;
+  const lineH = units.fontLyric * 1.2 * density.lyricGapScale;
   const lyricH = lyricLines > 0 ? lyricGap + lyricLines * lineH : 0;
-  const base = PAGE.systemHeightNoLyrics + notesExtra + lyricH;
+  // Stage staff is taller — scale the no-lyric base with staff height.
+  const baseNoLyric =
+    PAGE.systemHeightNoLyrics * (units.staffHeight / UNIT.staffHeight);
+  const base = baseNoLyric + notesExtra + lyricH + labelExtra;
   return Math.round(base * density.heightScale);
 }
 
@@ -340,13 +349,18 @@ export function fitLeadSheetPages(
 
 /**
  * One tall continuous page for Live scroll — no A4 breaks.
- * Uses a roomy density so systems stay stage-readable.
+ * Stage: labels above, larger type (STAGE_UNIT), tighter side margins.
  */
 export function layoutContinuousLeadSheet(
   score: NormalizedScore,
   systemContentWidth: number,
   density: DensityPreset = DENSITY_PRESETS[0],
+  opts?: { stage?: boolean },
 ): FitResult & { pageHeight: number } {
+  const stage = !!opts?.stage;
+  const units = stage ? STAGE_UNIT : UNIT;
+  const marginX = stage ? PAGE.stageMarginX : PAGE.marginX;
+
   const systems = layoutScore(score, {
     systemContentWidth,
     maxMeasuresPerSystem: density.maxMeasuresPerSystem,
@@ -355,8 +369,10 @@ export function layoutContinuousLeadSheet(
   const top = pageContentTop(true, density);
   let y = top;
   const positioned: PositionedSystem[] = systems.map((sys) => {
-    const h = systemBlockHeight(sys, density);
-    const ps: PositionedSystem = { system: sys, x: PAGE.marginX, y, height: h };
+    const h = systemBlockHeight(sys, density, units, {
+      sectionLabelAbove: stage,
+    });
+    const ps: PositionedSystem = { system: sys, x: marginX, y, height: h };
     y += h + density.systemGap;
     return ps;
   });
