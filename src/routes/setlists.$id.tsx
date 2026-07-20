@@ -1,5 +1,7 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { ArrowDown, ArrowUp, Maximize2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -10,6 +12,7 @@ import {
   useRemoveFromSetlist,
   useReorderSetlist,
 } from "@/hooks/useSongs";
+import { getSong } from "@/lib/songs.functions";
 import { SongChart, type SetlistLiveItem } from "@/components/chart/SongChart";
 import { dbToSong } from "@/lib/song-mapper";
 import { Button } from "@/components/ui/button";
@@ -20,21 +23,33 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
+type SetlistSearch = {
+  song?: string;
+  live: boolean;
+};
+
 export const Route = createFileRoute("/setlists/$id")({
+  validateSearch: (raw: Record<string, unknown>): SetlistSearch => ({
+    song: typeof raw.song === "string" && raw.song.length > 0 ? raw.song : undefined,
+    live: raw.live === true || raw.live === "1" || raw.live === 1,
+  }),
   component: SetlistDetailPage,
 });
 
 function SetlistDetailPage() {
   const { id } = Route.useParams();
+  const { song: songParam, live: liveSession } = Route.useSearch();
+  const navigate = useNavigate({ from: Route.fullPath });
+  const qc = useQueryClient();
+  const getSongFn = useServerFn(getSong);
+
   const { data, isLoading } = useSetlist(id);
   const { data: allSongs } = useSongs();
   const add = useAddSongToSetlist();
   const remove = useRemoveFromSetlist(id);
   const reorder = useReorderSetlist();
 
-  const [selectedSongId, setSelectedSongId] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [liveSession, setLiveSession] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(!liveSession);
 
   const items = data?.items ?? [];
 
@@ -69,8 +84,10 @@ function SetlistDetailPage() {
     return out;
   }, [items]);
 
-  const activeSongId =
-    selectedSongId ?? navItems[0]?.id ?? null;
+  const activeSongId = useMemo(() => {
+    if (songParam && navItems.some((s) => s.id === songParam)) return songParam;
+    return navItems[0]?.id ?? null;
+  }, [songParam, navItems]);
 
   const activeIndex = Math.max(
     0,
@@ -79,11 +96,49 @@ function SetlistDetailPage() {
 
   const { data: songData } = useSong(activeSongId ?? undefined);
 
+  // Prefetch neighbours for snappy Live prev/next on iPad.
+  useEffect(() => {
+    const ids = [navItems[activeIndex - 1]?.id, navItems[activeIndex + 1]?.id].filter(
+      Boolean,
+    ) as string[];
+    for (const sid of ids) {
+      void qc.prefetchQuery({
+        queryKey: ["songs", sid],
+        queryFn: () => getSongFn({ data: { id: sid } }),
+      });
+    }
+  }, [activeIndex, navItems, qc, getSongFn]);
+
+  // Keep URL song in sync when list loads / first song.
+  useEffect(() => {
+    if (!activeSongId) return;
+    if (songParam === activeSongId) return;
+    void navigate({
+      search: (prev: SetlistSearch) => ({ ...prev, song: activeSongId }),
+      replace: true,
+    });
+  }, [activeSongId, songParam, navigate]);
+
+  useEffect(() => {
+    if (liveSession) setSidebarOpen(false);
+  }, [liveSession]);
+
   const usedSongIds = useMemo(
     () => new Set(items.map((it) => it.arrangements?.songs?.id).filter(Boolean)),
     [items],
   );
   const addable = (allSongs ?? []).filter((s) => !usedSongIds.has(s.id));
+
+  const setSearch = (patch: Partial<SetlistSearch>) => {
+    void navigate({
+      search: (prev: SetlistSearch) => ({ ...prev, ...patch }),
+      replace: true,
+    });
+  };
+
+  const selectSong = (songId: string) => {
+    setSearch({ song: songId });
+  };
 
   const move = (idx: number, dir: -1 | 1) => {
     const ordered = items.map((i) => i.id);
@@ -98,8 +153,9 @@ function SetlistDetailPage() {
       toast.error("Legg til minst én låt først");
       return;
     }
-    setLiveSession(true);
+    const sid = activeSongId ?? navItems[0].id;
     setSidebarOpen(false);
+    setSearch({ song: sid, live: true });
   };
 
   const setlistLive = useMemo(() => {
@@ -109,14 +165,21 @@ function SetlistDetailPage() {
       index: activeIndex,
       onGoTo: (i: number) => {
         const target = navItems[i];
-        if (target) setSelectedSongId(target.id);
+        if (!target) return;
+        void navigate({
+          search: (prev: SetlistSearch) => ({ ...prev, song: target.id, live: true }),
+          replace: true,
+        });
       },
       onExitLive: () => {
-        setLiveSession(false);
         setSidebarOpen(true);
+        void navigate({
+          search: (prev: SetlistSearch) => ({ ...prev, live: false }),
+          replace: true,
+        });
       },
     };
-  }, [navItems, activeIndex]);
+  }, [navItems, activeIndex, navigate]);
 
   if (isLoading || !data) {
     return (
@@ -127,7 +190,10 @@ function SetlistDetailPage() {
   }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
+    <div
+      className="flex h-dvh w-full overflow-hidden bg-background text-foreground"
+      data-live={liveSession ? "1" : undefined}
+    >
       <aside
         className={cn(
           "z-50 flex flex-col border-r border-border bg-card/40 backdrop-blur-md transition-all duration-200",
@@ -141,8 +207,9 @@ function SetlistDetailPage() {
       >
         <div className="flex items-center gap-2 px-3 h-14 border-b border-border">
           <button
+            type="button"
             onClick={() => setSidebarOpen((v) => !v)}
-            className="p-2 rounded-md hover:bg-accent font-mono"
+            className="min-h-11 min-w-11 p-2 rounded-md hover:bg-accent font-mono"
             aria-label="Toggle"
           >
             ☰
@@ -170,7 +237,7 @@ function SetlistDetailPage() {
               </div>
               <Button
                 size="sm"
-                className="w-full font-mono uppercase tracking-wider text-xs"
+                className="w-full font-mono uppercase tracking-wider text-xs min-h-11"
                 onClick={startLive}
                 disabled={navItems.length === 0}
               >
@@ -200,8 +267,9 @@ function SetlistDetailPage() {
                     )}
                   >
                     <button
-                      onClick={() => setSelectedSongId(song.id)}
-                      className="flex-1 text-left min-w-0"
+                      type="button"
+                      onClick={() => selectSong(song.id)}
+                      className="flex-1 text-left min-w-0 min-h-11"
                     >
                       <div className="flex gap-2">
                         <span
@@ -227,30 +295,33 @@ function SetlistDetailPage() {
                         </span>
                       </div>
                     </button>
-                    <div className="flex flex-col opacity-0 group-hover:opacity-100">
+                    <div className="flex flex-col opacity-100 lg:opacity-0 lg:group-hover:opacity-100">
                       <button
+                        type="button"
                         onClick={() => move(i, -1)}
-                        className="p-0.5 text-muted-foreground hover:text-foreground"
+                        className="p-1.5 text-muted-foreground hover:text-foreground"
                         aria-label="Move up"
                       >
-                        <ArrowUp className="h-3 w-3" />
+                        <ArrowUp className="h-3.5 w-3.5" />
                       </button>
                       <button
+                        type="button"
                         onClick={() => move(i, 1)}
-                        className="p-0.5 text-muted-foreground hover:text-foreground"
+                        className="p-1.5 text-muted-foreground hover:text-foreground"
                         aria-label="Move down"
                       >
-                        <ArrowDown className="h-3 w-3" />
+                        <ArrowDown className="h-3.5 w-3.5" />
                       </button>
                     </div>
                     <button
+                      type="button"
                       onClick={() => {
                         if (confirm("Remove from setlist?")) remove.mutate(it.id);
                       }}
-                      className="p-1 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100"
+                      className="p-2 text-muted-foreground hover:text-destructive setlist-delete opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
                       aria-label="Remove"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 className="h-4 w-4" />
                     </button>
                   </li>
                 );
@@ -260,7 +331,12 @@ function SetlistDetailPage() {
             <div className="p-3 border-t border-border">
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="w-full" disabled={addable.length === 0}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full min-h-11"
+                    disabled={addable.length === 0}
+                  >
                     <Plus className="h-4 w-4 mr-1" />
                     {addable.length === 0 ? "All songs added" : "Add song"}
                   </Button>
@@ -274,6 +350,7 @@ function SetlistDetailPage() {
                   {addable.map((s) => (
                     <button
                       key={s.id}
+                      type="button"
                       onClick={() => {
                         add.mutate(
                           { setlistId: id, songId: s.id },
@@ -283,7 +360,7 @@ function SetlistDetailPage() {
                           },
                         );
                       }}
-                      className="w-full text-left rounded-md hover:bg-accent px-3 py-2"
+                      className="w-full text-left rounded-md hover:bg-accent px-3 py-2.5 min-h-11"
                     >
                       <p className="text-sm font-medium truncate">{s.title}</p>
                       <p className="text-xs text-muted-foreground font-mono truncate">
@@ -302,15 +379,16 @@ function SetlistDetailPage() {
         {!liveSession && (
           <div className="lg:hidden flex items-center h-12 px-3 border-b border-border bg-background/80 backdrop-blur gap-3">
             <button
+              type="button"
               onClick={() => setSidebarOpen(true)}
-              className="font-mono uppercase tracking-[0.18em] text-xs text-muted-foreground hover:text-foreground"
+              className="font-mono uppercase tracking-[0.18em] text-xs text-muted-foreground hover:text-foreground min-h-11 px-2"
             >
               ☰ Setlist
             </button>
             <Button
               size="sm"
               variant="outline"
-              className="ml-auto font-mono uppercase tracking-wider text-[10px] h-8"
+              className="ml-auto font-mono uppercase tracking-wider text-[10px] h-10 min-h-11"
               onClick={startLive}
               disabled={navItems.length === 0}
             >
@@ -322,9 +400,10 @@ function SetlistDetailPage() {
         <div className="flex-1 min-h-0">
           {songData ? (
             <SongChart
+              key={activeSongId ?? "none"}
               song={dbToSong(songData.song, songData.arrangement)}
               initialMode={liveSession ? "live" : "full"}
-              setlistLive={setlistLive}
+              setlistLive={liveSession ? setlistLive : undefined}
             />
           ) : (
             <div className="h-full flex items-center justify-center text-muted-foreground">

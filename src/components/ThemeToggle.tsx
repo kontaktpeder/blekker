@@ -1,4 +1,5 @@
 import { Moon, Sun } from "lucide-react";
+import { useRouterState } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/lib/theme";
 
@@ -31,12 +32,22 @@ export function ThemeToggle({ className, size = "md" }: Props) {
   );
 }
 
-/** Always-on floating control — works in Live fullscreen and normal pages. */
+/** Always-on floating control — hidden during setlist Live (toolbar has toggle). */
 export function ThemeToggleFab() {
+  const hide = useRouterState({
+    select: (s) => {
+      const search = s.location.search as { live?: boolean | string | number };
+      return search?.live === true || search?.live === "1" || search?.live === 1;
+    },
+  });
+  if (hide) return null;
+
   return (
     <div
       className="pointer-events-none fixed z-[100] left-3"
-      style={{ bottom: "max(1rem, env(safe-area-inset-bottom))" }}
+      style={{
+        top: "max(0.75rem, env(safe-area-inset-top))",
+      }}
     >
       <div className="pointer-events-auto">
         <ThemeToggle />

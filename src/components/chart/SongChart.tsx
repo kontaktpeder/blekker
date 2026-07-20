@@ -26,6 +26,7 @@ import type { ExportFormat, ExportLayout, LeadSheetVariant } from "@/lib/pdf/lay
 import { useUpdateSong } from "@/hooks/useSongs";
 import { toast } from "sonner";
 import { resolvePlayOrder } from "@/lib/ug-form";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { useTheme } from "@/lib/theme";
 
 type ViewMode = "full" | "chart" | "form" | "live";
@@ -128,6 +129,39 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
     setMode("full");
     setlistLive?.onExitLive?.();
   }
+
+  // Horizontal swipe (iPad) for setlist prev/next — ignore mostly-vertical scrolls.
+  useEffect(() => {
+    if (!isLive || !hasSetlist) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    let startX = 0;
+    let startY = 0;
+    let tracking = false;
+
+    const onStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      tracking = true;
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+    };
+    const onEnd = (e: TouchEvent) => {
+      if (!tracking || e.changedTouches.length !== 1) return;
+      tracking = false;
+      const dx = e.changedTouches[0].clientX - startX;
+      const dy = e.changedTouches[0].clientY - startY;
+      if (Math.abs(dx) < 80 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+      if (dx < 0) goSetlist(1);
+      else goSetlist(-1);
+    };
+
+    el.addEventListener("touchstart", onStart, { passive: true });
+    el.addEventListener("touchend", onEnd, { passive: true });
+    return () => {
+      el.removeEventListener("touchstart", onStart);
+      el.removeEventListener("touchend", onEnd);
+    };
+  }, [isLive, hasSetlist, setlistIdx, setlistLen]);
 
   useEffect(() => {
     if (!isLive || !hasSetlist || !setlistLive) return;
@@ -566,16 +600,19 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
                 <button
                   type="button"
                   onClick={() => setShowLyrics((v) => !v)}
-                  className="p-1.5 hover:bg-accent rounded border-l border-border ml-0.5 pl-2 outline-none focus-visible:ring-2 focus-visible:ring-ring [-webkit-tap-highlight-color:transparent]"
+                  className="p-1.5 hover:bg-accent rounded border-l border-border ml-0.5 pl-2 outline-none focus-visible:ring-2 focus-visible:ring-ring [-webkit-tap-highlight-color:transparent] min-h-10 min-w-10 inline-flex items-center justify-center"
                   aria-label="Toggle lyrics"
                 >
                   {showLyrics ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
                 </button>
+                <div className="border-l border-border ml-0.5 pl-1.5 flex items-center">
+                  <ThemeToggle size="sm" className="shadow-none border-0 rounded-md h-9 w-9" />
+                </div>
                 <button
                   type="button"
                   onClick={() => setExportOpen(true)}
                   disabled={exporting}
-                  className="p-1.5 hover:bg-accent rounded border-l border-border ml-0.5 pl-2 disabled:opacity-50 outline-none focus-visible:ring-2 focus-visible:ring-ring [-webkit-tap-highlight-color:transparent]"
+                  className="p-1.5 hover:bg-accent rounded border-l border-border ml-0.5 pl-2 disabled:opacity-50 outline-none focus-visible:ring-2 focus-visible:ring-ring [-webkit-tap-highlight-color:transparent] min-h-10 min-w-10 inline-flex items-center justify-center"
                   aria-label="Last ned PDF"
                   title="Last ned PDF"
                 >
@@ -594,7 +631,10 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
           </div>
 
           {hasSetlist && (
-            <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 flex items-center gap-0.5 rounded-full border border-border bg-background px-1 py-1 shadow-md max-w-[calc(100%-1.5rem)]">
+            <div
+              className="absolute left-1/2 z-20 -translate-x-1/2 flex items-center gap-0.5 rounded-full border border-border bg-background px-1 py-1 shadow-md max-w-[calc(100%-1.5rem)]"
+              style={{ bottom: "max(1rem, env(safe-area-inset-bottom))" }}
+            >
               <button
                 type="button"
                 onClick={() => goSetlist(-1)}
