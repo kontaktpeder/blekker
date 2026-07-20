@@ -766,7 +766,6 @@ export function LeadSheetSvg({
               <svg
                 viewBox={`0 0 ${PAGE.width} ${pageH}`}
                 width="100%"
-                height={continuous ? undefined : undefined}
                 xmlns="http://www.w3.org/2000/svg"
                 style={{
                   display: "block",
