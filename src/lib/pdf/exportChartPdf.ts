@@ -106,6 +106,17 @@ export async function exportChartPdf({
           svgClone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
         svgClone.setAttribute("width", String(vbW));
         svgClone.setAttribute("height", String(vbH));
+        // Standalone SVG→Image ignores parent CSS. Bake chart theme vars onto the clone
+        // so stroke="var(--chart-ink)" still paints staff/barlines (default stroke is none).
+        const cs = getComputedStyle(svg);
+        const parentCs = svg.parentElement ? getComputedStyle(svg.parentElement) : null;
+        const chartVar = (name: string, fallback: string) =>
+          cs.getPropertyValue(name).trim() ||
+          parentCs?.getPropertyValue(name).trim() ||
+          fallback;
+        svgClone.style.setProperty("--chart-ink", chartVar("--chart-ink", "#000000"));
+        svgClone.style.setProperty("--chart-muted", chartVar("--chart-muted", "#444444"));
+        svgClone.style.setProperty("--chart-page", chartVar("--chart-page", "#ffffff"));
         const xml = new XMLSerializer().serializeToString(svgClone);
         const b64 = btoa(unescape(encodeURIComponent(xml)));
         const svgUrl = `data:image/svg+xml;base64,${b64}`;

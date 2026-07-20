@@ -699,11 +699,12 @@ export function LeadSheetSvg({
               marginBottom: continuous ? 0 : 24,
             }}
           >
+            {/* CSS vars must live on <svg> so PDF export (standalone SVG→PNG) keeps strokes. */}
             <svg
               viewBox={`0 0 ${PAGE.width} ${pageH}`}
               width="100%"
               xmlns="http://www.w3.org/2000/svg"
-              style={{ display: "block", background: t.page }}
+              style={{ display: "block", background: t.page, ...cssVars }}
             >
               <rect x={0} y={0} width={PAGE.width} height={pageH} fill={t.page} />
               {page.showHeader && <Header score={score} density={density} />}
