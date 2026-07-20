@@ -152,7 +152,7 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
     if (!el) return;
     // MED ≈ current working pace; SLOW a notch under; FAST a bit more rise.
     // ~1 viewport in ~4 / 3 / 2 minutes with fractional-px accrual below.
-    const pxPerSec = scrollSpeed === 1 ? 5 : scrollSpeed === 2 ? 8 : 12;
+    const pxPerSec = scrollSpeed === 1 ? 5 : scrollSpeed === 2 ? 10 : 15;
     let raf = 0;
     let last = performance.now();
     let carry = 0;
