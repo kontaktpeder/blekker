@@ -5,6 +5,7 @@ import {
   normalizeSectionName,
   sectionKindKey,
   sectionNamesCompatible,
+  type SectionKind,
 } from "./section-labels-no";
 import { localizeBandNotes } from "./band-notes-no";
 
@@ -71,6 +72,21 @@ function emptySection(id: string, name: string): Section {
   };
 }
 
+function sameBridgeFamily(a: SectionKind, b: SectionKind): boolean {
+  const bridgeFamily = (k: SectionKind) => k === "bridge" || k === "stick";
+  return bridgeFamily(a) && bridgeFamily(b);
+}
+
+function sameMusicalRole(formName: string, sectionName: string): boolean {
+  const want = sectionKindKey(formName);
+  const got = sectionKindKey(sectionName);
+  if (want.kind === "other" || got.kind === "other") {
+    return sectionNamesCompatible(formName, sectionName);
+  }
+  if (want.kind === got.kind) return true;
+  return sameBridgeFamily(want.kind, got.kind);
+}
+
 function findBestMatch(
   sections: Section[],
   formName: string,
@@ -93,44 +109,69 @@ function findBestMatch(
   const n = normalizeSectionName(formName);
   const want = sectionKindKey(formName);
 
-  // 1) Unused exact name
-  let idx = prefer(
-    (s, j) => !used.has(j) && normalizeSectionName(s.name) === n,
-  );
+  // Prefer contentful matches — never lock onto empty Bro/Stick placeholders
+  // when a same-role section with real chords exists.
+  const unusedContent = (pred: (s: Section, j: number) => boolean) =>
+    prefer((s, j) => !used.has(j) && hasRealChords(s) && pred(s, j));
+  const unusedAny = (pred: (s: Section, j: number) => boolean) =>
+    prefer((s, j) => !used.has(j) && pred(s, j));
+
+  // 1) Unused exact name with content
+  let idx = unusedContent((s) => normalizeSectionName(s.name) === n);
   if (idx >= 0) return idx;
 
-  // 2) Unused compatible (kind + number)
-  idx = prefer(
-    (s, j) => !used.has(j) && sectionNamesCompatible(formName, s.name),
-  );
+  // 2) Unused compatible / same role with content (Bro ↔ Stick, Refräng ↔ Refreng)
+  idx = unusedContent((s) => sectionNamesCompatible(formName, s.name));
+  if (idx >= 0) return idx;
+  idx = unusedContent((s) => sameMusicalRole(formName, s.name));
   if (idx >= 0) return idx;
 
-  // 3) Unused same kind (ignore number) — fills "Refreng" from "Chorus"
-  idx = prefer((s, j) => {
-    if (used.has(j)) return false;
+  // 3) Unused same kind with content (ignore number)
+  idx = unusedContent((s) => {
     const k = sectionKindKey(s.name);
-    return k.kind === want.kind && want.kind !== "other";
+    if (want.kind === "other") return false;
+    return k.kind === want.kind || sameBridgeFamily(want.kind, k.kind);
   });
   if (idx >= 0) return idx;
 
-  // 4) Reuse any compatible with content
+  // 4) Reuse any contentful same-role (repeats / second Bro)
   idx = prefer(
-    (s, j) => sectionNamesCompatible(formName, s.name) && hasRealChords(s),
+    (s) => hasRealChords(s) && sectionNamesCompatible(formName, s.name),
   );
   if (idx >= 0) return idx;
-
-  // 5) Reuse richest same-kind with content
-  idx = prefer((s) => {
-    const k = sectionKindKey(s.name);
-    return k.kind === want.kind && want.kind !== "other" && hasRealChords(s);
-  });
+  idx = prefer((s) => hasRealChords(s) && sameMusicalRole(formName, s.name));
   if (idx >= 0) return idx;
 
-  // 6) Any exact / compatible even if empty
+  // 5) Only now: unused empty placeholders / exact empties
+  idx = unusedAny((s) => normalizeSectionName(s.name) === n);
+  if (idx >= 0) return idx;
+  idx = unusedAny((s) => sectionNamesCompatible(formName, s.name));
+  if (idx >= 0) return idx;
+  idx = unusedAny((s) => sameMusicalRole(formName, s.name));
+  if (idx >= 0) return idx;
+
+  // 6) Last resort: any exact / compatible even if empty & already used
   idx = prefer((s) => normalizeSectionName(s.name) === n);
   if (idx >= 0) return idx;
-  idx = prefer((s) => sectionNamesCompatible(formName, s.name));
-  return idx;
+  return prefer((s) => sectionNamesCompatible(formName, s.name));
+}
+
+/**
+ * Replace empty placeholder sections with a contentful same-role donor
+ * when one exists in the library (e.g. empty Bro ← Stick with chords).
+ */
+export function healEmptySections(sections: Section[]): Section[] {
+  return sections.map((s, i) => {
+    if (hasRealChords(s)) return s;
+    const donorIdx = sections.findIndex(
+      (d, j) =>
+        j !== i &&
+        hasRealChords(d) &&
+        sameMusicalRole(s.name, d.name),
+    );
+    if (donorIdx < 0) return s;
+    return cloneSection(sections[donorIdx], s.id, s.name);
+  });
 }
 
 /**
@@ -139,12 +180,18 @@ function findBestMatch(
  * Never invents empty bars when a contentful same-role section exists.
  */
 export function expandSectionsByForm(sections: Section[], form: string[]): Section[] {
-  if (!form.length) return sections.map((s) => cloneSection(s, s.id, s.name));
+  if (!form.length) {
+    return healEmptySections(
+      sections.map((s) => cloneSection(s, s.id, s.name)),
+    );
+  }
   if (
     form.length === sections.length &&
     form.every((f, i) => normalizeSectionName(f) === normalizeSectionName(sections[i]?.name ?? ""))
   ) {
-    return sections.map((s, i) => cloneSection(s, s.id || `f${i + 1}`, form[i] || s.name));
+    return healEmptySections(
+      sections.map((s, i) => cloneSection(s, s.id || `f${i + 1}`, form[i] || s.name)),
+    );
   }
 
   const used = new Set<number>();
@@ -163,7 +210,7 @@ export function expandSectionsByForm(sections: Section[], form: string[]): Secti
     }
   });
 
-  return result;
+  return healEmptySections(result);
 }
 
 export type FormFidelity = {
@@ -214,8 +261,10 @@ export function resolvePlayOrder(song: Pick<Song, "sections" | "form">): {
   sections: Section[];
 } {
   const structure = (song.form ?? []).map((s) => localizeSectionLabel(s));
-  const sections = (song.sections ?? []).map((s, i) =>
-    cloneSection(s, s.id || `s${i + 1}`, s.name),
+  const sections = healEmptySections(
+    (song.sections ?? []).map((s, i) =>
+      cloneSection(s, s.id || `s${i + 1}`, s.name),
+    ),
   );
 
   if (structure.length > sections.length) {

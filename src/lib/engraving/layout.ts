@@ -36,33 +36,35 @@ export interface System {
 const MIN_MEASURE_WIDTH = 180;
 const REST_WIDTH = 150;
 const SIMILE_WIDTH = 150;
-const CHORD_GAP = 12;
+const CHORD_GAP = 14;
 const MEASURE_INSET = 16;
 
 /** Approximate advance width of a bold serif chord glyph string. */
 export function estimateChordSymbolWidth(symbol: string, fontSize: number): number {
   let w = 0;
   for (const ch of symbol) {
-    if (ch === "#" || ch === "b" || ch === "/" || ch === "♯" || ch === "♭") w += fontSize * 0.48;
-    else if (ch === "i" || ch === "l" || ch === "1") w += fontSize * 0.38;
-    else if (ch === "m" || ch === "w") w += fontSize * 0.72;
-    else w += fontSize * 0.62;
+    if (ch === "#" || ch === "b" || ch === "/" || ch === "♯" || ch === "♭") w += fontSize * 0.55;
+    else if (ch === "i" || ch === "l" || ch === "1") w += fontSize * 0.4;
+    else if (ch === "m" || ch === "w") w += fontSize * 0.78;
+    else w += fontSize * 0.68;
   }
-  return Math.max(fontSize * 1.15, w);
+  // Slash chords (D/F#) and sus/add need a little extra — serif bold is wider than estimate.
+  const slashBonus = symbol.includes("/") ? fontSize * 0.15 : 0;
+  return Math.max(fontSize * 1.2, w + slashBonus);
 }
 
-function chordFontForCount(n: number): number {
-  if (n >= 3) return UNIT.fontChord * 0.82;
-  if (n === 2) return UNIT.fontChord * 0.92;
-  return UNIT.fontChord;
+function chordFontForCount(n: number, baseFont: number): number {
+  if (n >= 3) return baseFont * 0.82;
+  if (n === 2) return baseFont * 0.92;
+  return baseFont;
 }
 
 /** Minimum measure width so every chord glyph can sit without overlapping. */
-export function intrinsicWidth(m: Measure): number {
+export function intrinsicWidth(m: Measure, chordFont: number = UNIT.fontChord): number {
   if (m.slash === "rest") return REST_WIDTH;
   if (m.slash === "simile") return SIMILE_WIDTH;
   const n = Math.max(1, m.chords.length);
-  const fontSize = chordFontForCount(n);
+  const fontSize = chordFontForCount(n, chordFont);
   if (m.chords.length === 0) return MIN_MEASURE_WIDTH;
   const span = m.chords.reduce(
     (sum, c, i) =>
@@ -128,6 +130,8 @@ export function chordsFitInSpan(
 interface LayoutOpts {
   systemContentWidth: number;
   maxMeasuresPerSystem?: number;
+  /** Chord font used for intrinsic widths (Live stage uses STAGE_UNIT.fontChord). */
+  chordFont?: number;
 }
 
 function buildSystemFromMeasures(
@@ -136,10 +140,12 @@ function buildSystemFromMeasures(
   isSectionStart: boolean,
   contentWidth: number,
   lyricLine?: string,
+  chordFont: number = UNIT.fontChord,
 ): System {
-  const intrinsics = measures.map(intrinsicWidth);
+  const intrinsics = measures.map((m) => intrinsicWidth(m, chordFont));
   const total = intrinsics.reduce((a, b) => a + b, 0);
-  const scale = total > 0 ? contentWidth / total : 1;
+  // Never shrink below intrinsic — packing must leave room; only expand to fill.
+  const scale = total > 0 && total < contentWidth ? contentWidth / total : 1;
   const widths = intrinsics.map((w) => w * scale);
 
   let x = 0;
@@ -163,7 +169,7 @@ function buildSystemFromMeasures(
     sectionLyrics: lyricLine,
     sectionNotes: isSectionStart ? section.notes : undefined,
     measures: laid,
-    contentWidth,
+    contentWidth: Math.max(contentWidth, x),
   };
 }
 
@@ -254,6 +260,7 @@ export function layoutScore(score: NormalizedScore, opts: LayoutOpts): System[] 
   const systems: System[] = [];
   const maxPer = opts.maxMeasuresPerSystem ?? 6;
   const maxWidth = opts.systemContentWidth;
+  const chordFont = opts.chordFont ?? UNIT.fontChord;
 
   for (const section of score.sections) {
     if (section.measures.length === 0) continue;
@@ -263,20 +270,18 @@ export function layoutScore(score: NormalizedScore, opts: LayoutOpts): System[] 
     let currentW = 0;
 
     for (const m of section.measures) {
-      const w = intrinsicWidth(m);
+      const w = intrinsicWidth(m, chordFont);
       const nextW = current.length === 0 ? w : currentW + w;
       const atMax = current.length >= maxPer;
-      const crush =
-        current.length > 0 &&
-        nextW > maxWidth * 1.12 &&
-        current.length >= Math.max(2, maxPer - 1);
-      if (current.length > 0 && (atMax || crush)) {
+      // Break as soon as the next bar won't fit — never crush multi-chord walkdowns.
+      const overflow = current.length > 0 && nextW > maxWidth;
+      if (current.length > 0 && (atMax || overflow)) {
         groups.push(current);
         current = [];
         currentW = 0;
       }
       current.push(m);
-      currentW += intrinsicWidth(m);
+      currentW += intrinsicWidth(m, chordFont);
     }
     if (current.length > 0) groups.push(current);
 
@@ -289,6 +294,7 @@ export function layoutScore(score: NormalizedScore, opts: LayoutOpts): System[] 
           s === 0,
           maxWidth,
           lyricPerSystem[s],
+          chordFont,
         ),
       );
     });

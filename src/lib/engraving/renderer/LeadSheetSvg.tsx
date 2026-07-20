@@ -332,7 +332,7 @@ function ChordSymbols({ measure, staffTop }: { measure: LaidMeasure; staffTop: n
   const m = measure.measure;
   if (m.chords.length === 0) return null;
   const y = staffTop - Math.max(18, Math.round(u.fontChord * 0.4));
-  const gap = 12;
+  const gap = 14;
   const inset = 10;
   const minX = measure.x + inset;
   const maxRight = measure.x + measure.width - inset;
@@ -347,11 +347,11 @@ function ChordSymbols({ measure, staffTop }: { measure: LaidMeasure; staffTop: n
   });
 
   // Shrink font until every glyph fits without overlap — never stack symbols.
-  for (let attempt = 0; attempt < 8; attempt++) {
+  for (let attempt = 0; attempt < 10; attempt++) {
     widths = m.chords.map((c) => estimateChordSymbolWidth(c.symbol, fontSize));
     if (chordsFitInSpan(widths, minX, maxRight, gap)) break;
-    fontSize *= 0.9;
-    if (fontSize < Math.max(16, u.fontChord * 0.55)) break;
+    fontSize *= 0.88;
+    if (fontSize < Math.max(18, u.fontChord * 0.5)) break;
   }
 
   const xs = resolveNonOverlappingChordXs(preferred, widths, minX, maxRight, gap);

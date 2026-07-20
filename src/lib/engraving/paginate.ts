@@ -364,6 +364,7 @@ export function layoutContinuousLeadSheet(
   const systems = layoutScore(score, {
     systemContentWidth,
     maxMeasuresPerSystem: density.maxMeasuresPerSystem,
+    chordFont: units.fontChord,
   });
 
   const top = pageContentTop(true, density);
