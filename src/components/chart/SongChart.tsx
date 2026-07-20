@@ -471,109 +471,127 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
 
       {isLive && (
         <>
-          {/* Top-left: setlist now / next HUD */}
-          {hasSetlist && (
-            <div className="absolute top-4 left-4 z-10 max-w-[min(28rem,calc(100%-12rem))] rounded-lg border border-border bg-background/85 backdrop-blur-md px-3 py-2.5 font-mono">
-              <p className="text-[10px] tracking-[0.2em] text-muted-foreground uppercase">
-                Setlist {setlistIdx + 1}/{setlistLen}
-              </p>
-              <p className="mt-1 text-sm font-semibold text-foreground truncate">
-                {working.title}
-              </p>
-              <p className="text-[11px] text-muted-foreground tabular-nums truncate">
-                {displayKey} · {working.bpm} BPM
-                {working.capo ? ` · capo ${working.capo}` : ""}
-              </p>
-              {nextItem && (
-                <p className="mt-2 pt-2 border-t border-border/60 text-[11px] text-muted-foreground truncate">
-                  <span className="tracking-[0.15em] uppercase mr-1.5">Neste</span>
-                  {nextItem.title}
-                  <span className="opacity-70">
-                    {" "}
-                    · {nextItem.key} · {nextItem.bpm}
-                  </span>
-                </p>
+          {/* Solid chrome — no backdrop-blur (Safari/iPad leaks scroll content through). */}
+          <div
+            className="pointer-events-none absolute inset-x-0 top-0 z-20 p-3"
+            style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}
+          >
+            <div className="pointer-events-auto flex flex-col gap-2 max-w-full md:flex-row md:items-start md:justify-between">
+              {hasSetlist && (
+                <div className="shrink-0 max-w-full md:max-w-[min(22rem,calc(100%-1rem))] rounded-lg border border-border bg-background px-3 py-2.5 font-mono shadow-lg">
+                  <p className="text-[10px] tracking-[0.2em] text-muted-foreground uppercase">
+                    Setlist {setlistIdx + 1}/{setlistLen}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-foreground truncate">
+                    {working.title}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground tabular-nums truncate">
+                    {displayKey} · {working.bpm} BPM
+                    {working.capo ? ` · capo ${working.capo}` : ""}
+                  </p>
+                  {nextItem && (
+                    <p className="mt-2 pt-2 border-t border-border/60 text-[11px] text-muted-foreground truncate">
+                      <span className="tracking-[0.15em] uppercase mr-1.5">Neste</span>
+                      {nextItem.title}
+                      <span className="opacity-70">
+                        {" "}
+                        · {nextItem.key} · {nextItem.bpm}
+                      </span>
+                    </p>
+                  )}
+                </div>
               )}
-            </div>
-          )}
 
-          <div className="absolute top-4 right-4 z-10 flex flex-wrap items-center justify-end gap-2 rounded-lg border border-border bg-background/80 backdrop-blur-md px-3 py-2 font-mono max-w-[calc(100%-2rem)]">
-            <div className="flex items-center gap-3 px-2 tabular-nums text-sm">
-              <span>
-                <span className="text-muted-foreground text-[10px] tracking-[0.2em] mr-1">KEY</span>
-                {displayKey}
-              </span>
-              <span className="flex items-center gap-2">
-                <TempoPulse bpm={working.bpm} />
-                <span>
-                  <span className="text-muted-foreground text-[10px] tracking-[0.2em] mr-1">BPM</span>
-                  {working.bpm}
-                </span>
-              </span>
-            </div>
-            <div className="flex items-center border-l border-border pl-2">
-              <button
-                onClick={() => setSemitones((s) => s - 1)}
-                className="p-1.5 hover:bg-accent rounded"
-                aria-label="Transpose down"
+              <div
+                className={cn(
+                  "flex flex-wrap items-center gap-1 rounded-lg border border-border bg-background px-2 py-1.5 font-mono shadow-lg",
+                  "max-w-full md:max-w-[min(36rem,calc(100%-1rem))] md:justify-end",
+                  !hasSetlist && "ml-auto",
+                )}
               >
-                <Minus className="h-4 w-4" />
-              </button>
-              <div className="px-2 text-xs tabular-nums w-12 text-center">
-                {semitones === 0 ? "±0" : semitones > 0 ? `+${semitones}` : semitones}
+                <div className="flex items-center gap-3 px-2 tabular-nums text-sm">
+                  <span>
+                    <span className="text-muted-foreground text-[10px] tracking-[0.2em] mr-1">KEY</span>
+                    {displayKey}
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <TempoPulse bpm={working.bpm} />
+                    <span>
+                      <span className="text-muted-foreground text-[10px] tracking-[0.2em] mr-1">BPM</span>
+                      {working.bpm}
+                    </span>
+                  </span>
+                </div>
+                <div className="flex items-center border-l border-border pl-1">
+                  <button
+                    type="button"
+                    onClick={() => setSemitones((s) => s - 1)}
+                    className="p-1.5 hover:bg-accent rounded outline-none focus-visible:ring-2 focus-visible:ring-ring [-webkit-tap-highlight-color:transparent]"
+                    aria-label="Transpose down"
+                  >
+                    <Minus className="h-4 w-4" />
+                  </button>
+                  <div className="px-2 text-xs tabular-nums w-12 text-center">
+                    {semitones === 0 ? "±0" : semitones > 0 ? `+${semitones}` : semitones}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSemitones((s) => s + 1)}
+                    className="p-1.5 hover:bg-accent rounded outline-none focus-visible:ring-2 focus-visible:ring-ring [-webkit-tap-highlight-color:transparent]"
+                    aria-label="Transpose up"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setScrollSpeed((s) => (s + 1) % 4)}
+                  className="flex items-center gap-1 px-2 py-1.5 hover:bg-accent rounded border-l border-border ml-0.5 outline-none focus-visible:ring-2 focus-visible:ring-ring [-webkit-tap-highlight-color:transparent]"
+                  aria-label="Autoscroll speed"
+                  title="Autoscroll"
+                >
+                  {scrollSpeed === 0 ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+                  <span className="text-[10px] tracking-[0.15em] w-8 text-center">
+                    {scrollSpeed === 0 ? "OFF" : scrollSpeed === 1 ? "SLOW" : scrollSpeed === 2 ? "MED" : "FAST"}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowLyrics((v) => !v)}
+                  className="p-1.5 hover:bg-accent rounded border-l border-border ml-0.5 pl-2 outline-none focus-visible:ring-2 focus-visible:ring-ring [-webkit-tap-highlight-color:transparent]"
+                  aria-label="Toggle lyrics"
+                >
+                  {showLyrics ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExportOpen(true)}
+                  disabled={exporting}
+                  className="p-1.5 hover:bg-accent rounded border-l border-border ml-0.5 pl-2 disabled:opacity-50 outline-none focus-visible:ring-2 focus-visible:ring-ring [-webkit-tap-highlight-color:transparent]"
+                  aria-label="Last ned PDF"
+                  title="Last ned PDF"
+                >
+                  <Download className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={exitLive}
+                  className="p-1.5 hover:bg-accent rounded border-l border-border ml-0.5 pl-2 outline-none focus-visible:ring-2 focus-visible:ring-ring [-webkit-tap-highlight-color:transparent]"
+                  aria-label="Exit live"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
-              <button
-                onClick={() => setSemitones((s) => s + 1)}
-                className="p-1.5 hover:bg-accent rounded"
-                aria-label="Transpose up"
-              >
-                <Plus className="h-4 w-4" />
-              </button>
             </div>
-            <button
-              onClick={() => setScrollSpeed((s) => (s + 1) % 4)}
-              className="flex items-center gap-1 px-2 py-1.5 hover:bg-accent rounded border-l border-border ml-1"
-              aria-label="Autoscroll speed"
-              title="Autoscroll"
-            >
-              {scrollSpeed === 0 ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
-              <span className="text-[10px] tracking-[0.15em] w-8 text-center">
-                {scrollSpeed === 0 ? "OFF" : scrollSpeed === 1 ? "SLOW" : scrollSpeed === 2 ? "MED" : "FAST"}
-              </span>
-            </button>
-            <button
-              onClick={() => setShowLyrics((v) => !v)}
-              className="p-1.5 hover:bg-accent rounded border-l border-border ml-1 pl-2"
-              aria-label="Toggle lyrics"
-            >
-              {showLyrics ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-            </button>
-            <button
-              onClick={() => setExportOpen(true)}
-              disabled={exporting}
-              className="p-1.5 hover:bg-accent rounded border-l border-border ml-1 pl-2 disabled:opacity-50"
-              aria-label="Last ned PDF"
-              title="Last ned PDF"
-            >
-              <Download className="h-4 w-4" />
-            </button>
-            <button
-              onClick={exitLive}
-              className="p-1.5 hover:bg-accent rounded border-l border-border ml-1 pl-2"
-              aria-label="Exit live"
-            >
-              <X className="h-4 w-4" />
-            </button>
           </div>
 
-          {/* Bottom nav — big touch targets for stage */}
           {hasSetlist && (
-            <div className="absolute bottom-4 left-1/2 z-10 -translate-x-1/2 flex items-center gap-2 rounded-xl border border-border bg-background/90 backdrop-blur-md p-2 shadow-lg max-w-[calc(100%-1.5rem)]">
+            <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 flex items-center gap-2 rounded-xl border border-border bg-background p-2 shadow-lg max-w-[calc(100%-1.5rem)]">
               <button
                 type="button"
                 onClick={() => goSetlist(-1)}
                 disabled={!prevItem}
-                className="flex items-center gap-1 rounded-lg px-4 py-3 min-h-12 min-w-[5.5rem] hover:bg-accent disabled:opacity-30 font-mono text-xs tracking-[0.12em] uppercase"
+                className="flex items-center gap-1 rounded-lg px-4 py-3 min-h-12 min-w-[5.5rem] hover:bg-accent disabled:opacity-30 font-mono text-xs tracking-[0.12em] uppercase outline-none focus-visible:ring-2 focus-visible:ring-ring [-webkit-tap-highlight-color:transparent]"
                 aria-label="Forrige låt"
               >
                 <ChevronLeft className="h-5 w-5" />
@@ -587,7 +605,7 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
                 type="button"
                 onClick={() => goSetlist(1)}
                 disabled={!nextItem}
-                className="flex items-center gap-1 rounded-lg px-4 py-3 min-h-12 min-w-[5.5rem] hover:bg-accent disabled:opacity-30 font-mono text-xs tracking-[0.12em] uppercase"
+                className="flex items-center gap-1 rounded-lg px-4 py-3 min-h-12 min-w-[5.5rem] hover:bg-accent disabled:opacity-30 font-mono text-xs tracking-[0.12em] uppercase outline-none focus-visible:ring-2 focus-visible:ring-ring [-webkit-tap-highlight-color:transparent]"
                 aria-label="Neste låt"
               >
                 Neste
@@ -601,27 +619,14 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
       <div
         ref={scrollRef}
         className={cn(
-          "flex-1 min-h-0 overflow-y-auto py-6",
-          isLive ? "px-1 md:px-2 bg-[#0a0a0c]" : "px-2 md:px-6",
-          isLive && hasSetlist && "pb-28",
+          "flex-1 min-h-0 overflow-y-auto",
+          isLive ? "px-1 md:px-2 bg-[#0a0a0c] pb-6" : "px-2 md:px-6 py-6",
+          isLive && (hasSetlist ? "pt-40 md:pt-24 pb-28" : "pt-24 md:pt-20"),
         )}
       >
         {isLive ? (
           <div className="mx-auto w-full space-y-5" style={{ maxWidth: 834 }}>
-            <div className="flex flex-wrap items-center gap-3 md:gap-4 rounded-lg border border-white/10 bg-black/40 px-4 py-2.5 font-mono tabular-nums text-sm w-fit">
-              <div className="flex items-center gap-2.5">
-                <TempoPulse bpm={working.bpm} size="md" />
-                <Meta label="BPM" value={String(working.bpm)} />
-              </div>
-              <div className="ticker-divider" />
-              <Meta label="KEY" value={displayKey} />
-              {working.capo ? (
-                <>
-                  <div className="ticker-divider" />
-                  <Meta label="CAPO" value={String(working.capo)} />
-                </>
-              ) : null}
-            </div>
+            {/* Meta lives in the solid top chrome — skip duplicate strip that bled through on iPad. */}
             <div>
               <p className="font-mono uppercase tracking-[0.18em] text-muted-foreground mb-3 text-sm">
                 Form
