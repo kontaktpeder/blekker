@@ -766,8 +766,17 @@ export function LeadSheetSvg({
               <svg
                 viewBox={`0 0 ${PAGE.width} ${pageH}`}
                 width="100%"
+                height={continuous ? undefined : undefined}
                 xmlns="http://www.w3.org/2000/svg"
-                style={{ display: "block", background: t.page, ...cssVars }}
+                style={{
+                  display: "block",
+                  background: t.page,
+                  ...cssVars,
+                  // Explicit aspect so continuous Live sheets get real layout height.
+                  ...(continuous
+                    ? { aspectRatio: `${PAGE.width} / ${pageH}`, height: "auto" }
+                    : null),
+                }}
               >
                 <rect x={0} y={0} width={PAGE.width} height={pageH} fill={t.page} />
                 {page.showHeader && <Header score={score} density={density} />}

@@ -150,14 +150,17 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
     if (!isLive || scrollSpeed === 0) return;
     const el = scrollRef.current;
     if (!el) return;
-    // ~1 viewport height in ~4 / 3 / 2 minutes (see scrollHeight at runtime).
+    // ~1 viewport in ~4 / 3 / 2 minutes. Accrue fractional px — scrollTop
+    // is integer on many engines, so +0.08/frame alone never moves.
     const pxPerSec = scrollSpeed === 1 ? 5 : scrollSpeed === 2 ? 7 : 10;
     let raf = 0;
     let last = performance.now();
-    /** Pause only on real user input — not on our own scrollTop writes. */
+    let carry = 0;
     let pauseUntil = 0;
-    const pauseForUser = () => {
-      pauseUntil = performance.now() + 500;
+    const pauseForUser = (e: Event) => {
+      // Don't pause for chrome outside the scroll pane (Play/Pause etc.).
+      if (e.target instanceof Node && !el.contains(e.target)) return;
+      pauseUntil = performance.now() + 600;
     };
 
     el.addEventListener("wheel", pauseForUser, { passive: true });
@@ -170,9 +173,13 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
       last = now;
       const max = Math.max(0, el.scrollHeight - el.clientHeight);
       if (now >= pauseUntil && max > 0) {
-        el.scrollTop = Math.min(el.scrollTop + pxPerSec * dt, max);
+        carry += pxPerSec * dt;
+        if (carry >= 1) {
+          const step = Math.floor(carry);
+          carry -= step;
+          el.scrollTop = Math.min(el.scrollTop + step, max);
+        }
       }
-      // Keep looping while content may still be laying out (max was 0 on first frames).
       if (max > 0 && el.scrollTop >= max - 1) return;
       raf = requestAnimationFrame(tick);
     };

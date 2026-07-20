@@ -59,7 +59,7 @@ export function LiveLeadSheet({ song, semitones, showLyrics }: Props) {
 
   return (
     <div
-      className="mx-auto w-full overflow-hidden rounded-sm shadow-[0_0_0_1px_rgba(240,238,230,0.08)]"
+      className="mx-auto w-full rounded-sm shadow-[0_0_0_1px_rgba(240,238,230,0.08)]"
       style={{ maxWidth: LIVE_LEAD_MAX_WIDTH_PX }}
     >
       <LeadSheetSvg
