@@ -8,12 +8,17 @@ import {
 } from "@/lib/engraving/paginate";
 import { LeadSheetSvg } from "@/lib/engraving/renderer/LeadSheetSvg";
 import { KEY_ACCIDENTALS } from "@/lib/engraving/renderer/glyphs";
-import { LIVE_LEAD_MAX_WIDTH_PX } from "@/lib/engraving/renderer/theme";
+import {
+  LIVE_LEAD_MAX_WIDTH_PX,
+  type ChartThemeId,
+} from "@/lib/engraving/renderer/theme";
 
 interface Props {
   song: Song;
   semitones: number;
   showLyrics: boolean;
+  /** stage = dark; paper = light. Layout stays stage (full-width, labels above). */
+  theme?: ChartThemeId;
 }
 
 /** No left section column — clef + key + time only (matches stageLayout). */
@@ -39,8 +44,13 @@ const STAGE_DENSITY = {
   marginTop: 72,
 };
 
-/** Dark continuous lead sheet — full-width music, labels above, large type. */
-export function LiveLeadSheet({ song, semitones, showLyrics }: Props) {
+/** Continuous lead sheet for Live — light or dark ink, same stage layout. */
+export function LiveLeadSheet({
+  song,
+  semitones,
+  showLyrics,
+  theme = "stage",
+}: Props) {
   const { score, pages, density, pageHeight } = useMemo(() => {
     const normalized = normalizeSong(song, semitones);
     const fitted = layoutContinuousLeadSheet(
@@ -57,17 +67,24 @@ export function LiveLeadSheet({ song, semitones, showLyrics }: Props) {
     };
   }, [song, semitones]);
 
+  const isLight = theme === "paper";
+
   return (
     <div
-      className="mx-auto w-full rounded-sm shadow-[0_0_0_1px_rgba(240,238,230,0.08)]"
-      style={{ maxWidth: LIVE_LEAD_MAX_WIDTH_PX }}
+      className="mx-auto w-full rounded-sm"
+      style={{
+        maxWidth: LIVE_LEAD_MAX_WIDTH_PX,
+        boxShadow: isLight
+          ? "0 0 0 1px rgba(0,0,0,0.08), 0 8px 24px rgba(0,0,0,0.06)"
+          : "0 0 0 1px rgba(240,238,230,0.08)",
+      }}
     >
       <LeadSheetSvg
         score={score}
         pages={pages}
         showLyrics={showLyrics}
         density={density}
-        theme="stage"
+        theme={theme}
         pageHeights={[pageHeight]}
         continuous
         stageLayout
