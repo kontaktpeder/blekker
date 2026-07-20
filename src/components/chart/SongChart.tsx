@@ -115,6 +115,8 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
     if (!setlistLive) return;
     const next = setlistLive.index + dir;
     if (next < 0 || next >= setlistLive.items.length) return;
+    setScrollSpeed(0);
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
     setlistLive.onGoTo(next);
   }
 
@@ -478,25 +480,21 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
           >
             <div className="pointer-events-auto flex flex-col gap-2 max-w-full md:flex-row md:items-start md:justify-between">
               {hasSetlist && (
-                <div className="shrink-0 max-w-full md:max-w-[min(22rem,calc(100%-1rem))] rounded-lg border border-border bg-background px-3 py-2.5 font-mono shadow-lg">
-                  <p className="text-[10px] tracking-[0.2em] text-muted-foreground uppercase">
-                    Setlist {setlistIdx + 1}/{setlistLen}
+                <div className="shrink-0 max-w-full md:max-w-[min(18rem,calc(100%-1rem))] rounded-md border border-border bg-background px-2.5 py-1.5 font-mono shadow-md">
+                  <p className="text-[9px] tracking-[0.18em] text-muted-foreground uppercase leading-none">
+                    {setlistIdx + 1}/{setlistLen}
                   </p>
-                  <p className="mt-1 text-sm font-semibold text-foreground truncate">
+                  <p className="mt-1 text-[11px] md:text-xs font-medium text-foreground/90 truncate leading-snug">
                     {working.title}
                   </p>
-                  <p className="text-[11px] text-muted-foreground tabular-nums truncate">
-                    {displayKey} · {working.bpm} BPM
-                    {working.capo ? ` · capo ${working.capo}` : ""}
+                  <p className="text-[10px] text-muted-foreground tabular-nums truncate leading-snug">
+                    {displayKey} · {working.bpm}
+                    {working.capo ? ` · c${working.capo}` : ""}
                   </p>
                   {nextItem && (
-                    <p className="mt-2 pt-2 border-t border-border/60 text-[11px] text-muted-foreground truncate">
-                      <span className="tracking-[0.15em] uppercase mr-1.5">Neste</span>
+                    <p className="mt-1 pt-1 border-t border-border/50 text-[10px] text-muted-foreground/80 truncate leading-snug">
+                      <span className="tracking-[0.12em] uppercase mr-1 opacity-70">Neste</span>
                       {nextItem.title}
-                      <span className="opacity-70">
-                        {" "}
-                        · {nextItem.key} · {nextItem.bpm}
-                      </span>
                     </p>
                   )}
                 </div>
@@ -586,30 +584,30 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
           </div>
 
           {hasSetlist && (
-            <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 flex items-center gap-2 rounded-xl border border-border bg-background p-2 shadow-lg max-w-[calc(100%-1.5rem)]">
+            <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 flex items-center gap-0.5 rounded-full border border-border bg-background px-1 py-1 shadow-md max-w-[calc(100%-1.5rem)]">
               <button
                 type="button"
                 onClick={() => goSetlist(-1)}
                 disabled={!prevItem}
-                className="flex items-center gap-1 rounded-lg px-4 py-3 min-h-12 min-w-[5.5rem] hover:bg-accent disabled:opacity-30 font-mono text-xs tracking-[0.12em] uppercase outline-none focus-visible:ring-2 focus-visible:ring-ring [-webkit-tap-highlight-color:transparent]"
+                className="flex items-center justify-center gap-0.5 rounded-full h-10 min-w-10 px-3 hover:bg-accent active:scale-[0.97] transition-[transform,background-color] duration-150 disabled:opacity-25 font-mono text-[10px] tracking-[0.14em] uppercase outline-none focus-visible:ring-2 focus-visible:ring-ring [-webkit-tap-highlight-color:transparent]"
                 aria-label="Forrige låt"
               >
-                <ChevronLeft className="h-5 w-5" />
-                Forrige
+                <ChevronLeft className="h-4 w-4 opacity-80" />
+                <span className="hidden sm:inline">Forrige</span>
               </button>
-              <div className="px-3 text-center font-mono tabular-nums text-sm min-w-[3.5rem]">
+              <div className="px-2.5 text-center font-mono tabular-nums text-[11px] text-muted-foreground min-w-[2.75rem]">
                 {setlistIdx + 1}
-                <span className="text-muted-foreground">/{setlistLen}</span>
+                <span className="opacity-50">/{setlistLen}</span>
               </div>
               <button
                 type="button"
                 onClick={() => goSetlist(1)}
                 disabled={!nextItem}
-                className="flex items-center gap-1 rounded-lg px-4 py-3 min-h-12 min-w-[5.5rem] hover:bg-accent disabled:opacity-30 font-mono text-xs tracking-[0.12em] uppercase outline-none focus-visible:ring-2 focus-visible:ring-ring [-webkit-tap-highlight-color:transparent]"
+                className="flex items-center justify-center gap-0.5 rounded-full h-10 min-w-10 px-3 hover:bg-accent active:scale-[0.97] transition-[transform,background-color] duration-150 disabled:opacity-25 font-mono text-[10px] tracking-[0.14em] uppercase outline-none focus-visible:ring-2 focus-visible:ring-ring [-webkit-tap-highlight-color:transparent]"
                 aria-label="Neste låt"
               >
-                Neste
-                <ChevronRight className="h-5 w-5" />
+                <span className="hidden sm:inline">Neste</span>
+                <ChevronRight className="h-4 w-4 opacity-80" />
               </button>
             </div>
           )}
@@ -621,14 +619,17 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
         className={cn(
           "flex-1 min-h-0 overflow-y-auto",
           isLive ? "px-1 md:px-2 bg-[#0a0a0c] pb-6" : "px-2 md:px-6 py-6",
-          isLive && (hasSetlist ? "pt-40 md:pt-24 pb-28" : "pt-24 md:pt-20"),
+          isLive && (hasSetlist ? "pt-32 md:pt-20 pb-24" : "pt-24 md:pt-20"),
         )}
       >
         {isLive ? (
-          <div className="mx-auto w-full space-y-5" style={{ maxWidth: 834 }}>
-            {/* Meta lives in the solid top chrome — skip duplicate strip that bled through on iPad. */}
+          <div
+            key={working.id}
+            className="mx-auto w-full space-y-4 animate-in fade-in duration-300"
+            style={{ maxWidth: 834 }}
+          >
             <div>
-              <p className="font-mono uppercase tracking-[0.18em] text-muted-foreground mb-3 text-sm">
+              <p className="font-mono uppercase tracking-[0.2em] text-muted-foreground/70 mb-2 text-[10px]">
                 Form
               </p>
               <FormStrip form={play.form} large />
