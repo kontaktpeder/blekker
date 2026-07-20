@@ -265,10 +265,12 @@ export function layoutScore(score: NormalizedScore, opts: LayoutOpts): System[] 
     for (const m of section.measures) {
       const w = intrinsicWidth(m);
       const nextW = current.length === 0 ? w : currentW + w;
-      if (
+      const atMax = current.length >= maxPer;
+      const crush =
         current.length > 0 &&
-        (current.length >= maxPer || nextW > maxWidth * 1.05)
-      ) {
+        nextW > maxWidth * 1.12 &&
+        current.length >= Math.max(2, maxPer - 1);
+      if (current.length > 0 && (atMax || crush)) {
         groups.push(current);
         current = [];
         currentW = 0;

@@ -34,7 +34,7 @@ const STAGE_DENSITY = {
   systemGap: 72,
   heightScale: 1.05,
   lyricGapScale: 1,
-  maxMeasuresPerSystem: 3,
+  maxMeasuresPerSystem: 4,
   headerHeight: 200,
   marginTop: 72,
 };

@@ -150,7 +150,7 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
     if (!isLive || scrollSpeed === 0) return;
     const el = scrollRef.current;
     if (!el) return;
-    // ~1 page (~1200px at iPad width) in ~4 / 3 / 2 minutes.
+    // ~1 viewport height in ~4 / 3 / 2 minutes (see scrollHeight at runtime).
     const pxPerSec = scrollSpeed === 1 ? 5 : scrollSpeed === 2 ? 7 : 10;
     let raf = 0;
     let last = performance.now();
@@ -172,7 +172,8 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
       if (now >= pauseUntil && max > 0) {
         el.scrollTop = Math.min(el.scrollTop + pxPerSec * dt, max);
       }
-      if (el.scrollTop >= max - 1) return;
+      // Keep looping while content may still be laying out (max was 0 on first frames).
+      if (max > 0 && el.scrollTop >= max - 1) return;
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -183,7 +184,7 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
       el.removeEventListener("touchmove", pauseForUser);
       el.removeEventListener("pointerdown", pauseForUser);
     };
-  }, [isLive, scrollSpeed]);
+  }, [isLive, scrollSpeed, working.id, lyricsOn]);
 
   useEffect(() => {
     if (!isLive) setScrollSpeed(0);
@@ -262,7 +263,7 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
   }
 
   return (
-    <div className={cn("flex flex-col h-full", isLive && "fixed inset-0 z-50 bg-background")}>
+    <div className={cn("flex flex-col h-full min-h-0", isLive && "fixed inset-0 z-50 bg-background")}>
       {!isLive && (
         <header className="border-b border-border/70 bg-background/80 backdrop-blur-md px-5 md:px-8 py-4">
           <div className="flex items-start justify-between gap-6 flex-wrap">
@@ -593,7 +594,7 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
       <div
         ref={scrollRef}
         className={cn(
-          "flex-1 overflow-y-auto py-6",
+          "flex-1 min-h-0 overflow-y-auto py-6",
           isLive ? "px-1 md:px-2 bg-[#0a0a0c]" : "px-2 md:px-6",
           isLive && hasSetlist && "pb-28",
         )}
