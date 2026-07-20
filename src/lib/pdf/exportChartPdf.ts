@@ -8,13 +8,29 @@ import {
   type LeadSheetVariant,
 } from "./layouts";
 
-interface ExportOptions {
+export interface ExportOptions {
   song: Song;
   semitones: number;
   showLyrics: boolean;
   layout?: ExportLayout;
   format?: ExportFormat;
   variant?: LeadSheetVariant;
+}
+
+export type ChartPdfBlob = {
+  blob: Blob;
+  filename: string;
+};
+
+function triggerDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2_000);
 }
 
 /** Title Case each word; keep spaces; strip filesystem-unsafe chars. */
@@ -51,18 +67,16 @@ const CONTENT_H_MM = A4_H_MM - MARGIN_MM * 2;
 const GAP_MM = 3;
 
 /**
- * Renders the chosen layout off-screen, snapshots each section with
- * html2canvas, and emits the requested file format. Layout is a
- * presentation choice — data and pagination logic stay the same.
+ * Renders the chosen layout off-screen and returns a PDF Blob (does not download).
+ * Sheet/PNG format is not supported here — use exportChartPdf for that.
  */
-export async function exportChartPdf({
+export async function buildChartPdfBlob({
   song,
   semitones,
   showLyrics,
   layout = "blekker",
-  format = "pdf",
   variant,
-}: ExportOptions): Promise<void> {
+}: Omit<ExportOptions, "format">): Promise<ChartPdfBlob> {
   const LayoutComponent = LAYOUTS[layout].Component;
 
   const host = document.createElement("div");
@@ -167,22 +181,6 @@ export async function exportChartPdf({
     });
 
     if (svgOnlySections) {
-      if (format === "sheet") {
-        for (let i = 0; i < sections.length; i++) {
-          const r = rasters.get(sections[i].firstElementChild as Element)!;
-          const a = document.createElement("a");
-          a.href = r.pngUrl;
-          a.download = buildFilename(
-            song,
-            layout,
-            `sheet${sections.length > 1 ? `-${i + 1}` : ""}.png`,
-          );
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-        }
-        return;
-      }
       const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
       sections.forEach((s, i) => {
         if (i > 0) pdf.addPage();
@@ -196,8 +194,8 @@ export async function exportChartPdf({
         const y = (A4_H_MM - h) / 2;
         pdf.addImage(r.jpgUrl, "JPEG", x, y, w, h);
       });
-      pdf.save(buildFilename(song, layout, "pdf"));
-      return;
+      const filename = buildFilename(song, layout, "pdf");
+      return { blob: pdf.output("blob"), filename };
     }
 
     // Standard path (blekker) — snapshot each section via html2canvas.
@@ -211,7 +209,7 @@ export async function exportChartPdf({
       },
     };
 
-    const rendered: { dataUrl: string; heightMM: number }[] = [];
+    const rendered: { dataUrl: string; heightMM: number; pngUrl?: string }[] = [];
     for (const el of sections) {
       const canvas = await html2canvas(el, {
         scale: 2,
@@ -225,32 +223,9 @@ export async function exportChartPdf({
       const s = CONTENT_W_MM / pxW;
       rendered.push({
         dataUrl: canvas.toDataURL("image/jpeg", 0.92),
+        pngUrl: canvas.toDataURL("image/png"),
         heightMM: pxH * s,
       });
-    }
-
-    if (format === "sheet") {
-      for (let i = 0; i < sections.length; i++) {
-        const canvas = await html2canvas(sections[i], {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: "#ffffff",
-          logging: false,
-          ...cloneOptions,
-        });
-        const url = canvas.toDataURL("image/png");
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = buildFilename(
-          song,
-          layout,
-          `sheet${sections.length > 1 ? `-${i + 1}` : ""}.png`,
-        );
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-      }
-      return;
     }
 
     const MAX_PAGES = 2;
@@ -281,7 +256,177 @@ export async function exportChartPdf({
       }
     });
 
-    pdf.save(buildFilename(song, layout, "pdf"));
+    const filename = buildFilename(song, layout, "pdf");
+    return { blob: pdf.output("blob"), filename };
+  } finally {
+    setTimeout(() => {
+      root.unmount();
+      host.remove();
+    }, 0);
+  }
+}
+
+/**
+ * Renders the chosen layout off-screen and downloads PDF or per-sheet PNGs.
+ */
+export async function exportChartPdf({
+  song,
+  semitones,
+  showLyrics,
+  layout = "blekker",
+  format = "pdf",
+  variant,
+}: ExportOptions): Promise<void> {
+  if (format === "pdf") {
+    const { blob, filename } = await buildChartPdfBlob({
+      song,
+      semitones,
+      showLyrics,
+      layout,
+      variant,
+    });
+    triggerDownload(blob, filename);
+    return;
+  }
+
+  // Per-sheet PNGs — same render pipeline, download images instead of PDF.
+  const LayoutComponent = LAYOUTS[layout].Component;
+  const host = document.createElement("div");
+  host.style.position = "fixed";
+  host.style.left = "-10000px";
+  host.style.top = "0";
+  host.style.background = "#ffffff";
+  document.body.appendChild(host);
+  const root = createRoot(host);
+
+  try {
+    await new Promise<void>((resolve) => {
+      root.render(
+        createElement(LayoutComponent, { song, semitones, showLyrics, variant }),
+      );
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
+
+    const container = host.firstElementChild as HTMLElement | null;
+    if (!container) throw new Error("Failed to render printable chart");
+
+    interface Raster { pngUrl: string; vbW: number; vbH: number; boxW: number; boxH: number }
+    const svgs = Array.from(container.querySelectorAll("svg"));
+    const rasters = new Map<Element, Raster>();
+    await Promise.all(
+      svgs.map(async (svg) => {
+        const rect = svg.getBoundingClientRect();
+        const vb = svg.getAttribute("viewBox")?.split(/\s+/).map(Number);
+        const vbW = vb?.[2] ?? rect.width ?? 700;
+        const vbH = vb?.[3] ?? rect.height ?? 990;
+        const boxW = rect.width || 794;
+        const boxH = boxW * (vbH / vbW);
+        const svgClone = svg.cloneNode(true) as SVGElement;
+        if (!svgClone.getAttribute("xmlns"))
+          svgClone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+        svgClone.setAttribute("width", String(vbW));
+        svgClone.setAttribute("height", String(vbH));
+        const cs = getComputedStyle(svg);
+        const parentCs = svg.parentElement ? getComputedStyle(svg.parentElement) : null;
+        const chartVar = (name: string, fallback: string) =>
+          cs.getPropertyValue(name).trim() ||
+          parentCs?.getPropertyValue(name).trim() ||
+          fallback;
+        svgClone.style.setProperty("--chart-ink", chartVar("--chart-ink", "#000000"));
+        svgClone.style.setProperty("--chart-muted", chartVar("--chart-muted", "#444444"));
+        svgClone.style.setProperty("--chart-page", chartVar("--chart-page", "#ffffff"));
+        const xml = new XMLSerializer().serializeToString(svgClone);
+        const b64 = btoa(unescape(encodeURIComponent(xml)));
+        const svgUrl = `data:image/svg+xml;base64,${b64}`;
+        const pngUrl = await new Promise<string>((resolve, reject) => {
+          const im = new Image();
+          im.onload = () => {
+            const targetW = Math.min(2200, vbW * 1.5);
+            const scale = targetW / vbW;
+            const cv = document.createElement("canvas");
+            cv.width = Math.max(1, Math.round(vbW * scale));
+            cv.height = Math.max(1, Math.round(vbH * scale));
+            const ctx = cv.getContext("2d");
+            if (!ctx) return reject(new Error("2d ctx"));
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, cv.width, cv.height);
+            ctx.drawImage(im, 0, 0, cv.width, cv.height);
+            try {
+              resolve(cv.toDataURL("image/png"));
+            } catch (e) {
+              reject(e as Error);
+            }
+          };
+          im.onerror = () => reject(new Error("SVG load failed"));
+          im.src = svgUrl;
+        });
+        const img = document.createElement("img");
+        img.src = pngUrl;
+        img.style.display = "block";
+        img.style.width = `${boxW}px`;
+        img.style.height = `${boxH}px`;
+        rasters.set(img, { pngUrl, vbW, vbH, boxW, boxH });
+        svg.parentNode?.replaceChild(img, svg);
+      }),
+    );
+
+    const sections = Array.from(
+      container.querySelectorAll<HTMLElement>("[data-pdf-section]"),
+    );
+    if (sections.length === 0) throw new Error("No sections to export");
+
+    const svgOnlySections = sections.every((s) => {
+      const kids = Array.from(s.children);
+      return kids.length === 1 && kids[0].tagName === "IMG" && rasters.has(kids[0]);
+    });
+
+    if (svgOnlySections) {
+      for (let i = 0; i < sections.length; i++) {
+        const r = rasters.get(sections[i].firstElementChild as Element)!;
+        const a = document.createElement("a");
+        a.href = r.pngUrl;
+        a.download = buildFilename(
+          song,
+          layout,
+          `sheet${sections.length > 1 ? `-${i + 1}` : ""}.png`,
+        );
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+      return;
+    }
+
+    const [{ default: html2canvas }] = await Promise.all([import("html2canvas")]);
+    const cloneOptions = {
+      onclone: (doc: Document) => {
+        doc.querySelectorAll('style, link[rel="stylesheet"]').forEach((n) => n.remove());
+        doc.documentElement.style.background = "#ffffff";
+        doc.body.style.background = "#ffffff";
+        doc.body.style.color = "#000000";
+      },
+    };
+
+    for (let i = 0; i < sections.length; i++) {
+      const canvas = await html2canvas(sections[i], {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        logging: false,
+        ...cloneOptions,
+      });
+      const url = canvas.toDataURL("image/png");
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = buildFilename(
+        song,
+        layout,
+        `sheet${sections.length > 1 ? `-${i + 1}` : ""}.png`,
+      );
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
   } finally {
     setTimeout(() => {
       root.unmount();

@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Maximize2, Plus } from "lucide-react";
+import { Maximize2, Plus, Download } from "lucide-react";
 import { toast } from "sonner";
 import {
   useSetlist,
@@ -15,8 +15,12 @@ import {
 import { getSong } from "@/lib/songs.functions";
 import { SongChart, type SetlistLiveItem } from "@/components/chart/SongChart";
 import { SetlistSortableList } from "@/components/setlist/SetlistSortableList";
+import { SetlistExportDialog } from "@/components/setlist/SetlistExportDialog";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { dbToSong } from "@/lib/song-mapper";
+import { exportSetlistCharts } from "@/lib/pdf/exportSetlistCharts";
+import type { ExportLayout, LeadSheetVariant } from "@/lib/pdf/layouts";
+import type { Song } from "@/lib/music";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -52,6 +56,9 @@ function SetlistDetailPage() {
   const reorder = useReorderSetlist();
 
   const [sidebarOpen, setSidebarOpen] = useState(!liveSession);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState<string | null>(null);
 
   const items = data?.items ?? [];
 
@@ -176,6 +183,67 @@ function SetlistDetailPage() {
     setSearch({ song: sid, live: true });
   };
 
+  const runSetlistExport = async (opts: {
+    bundle: "combined" | "zip";
+    layout: ExportLayout;
+    variant?: LeadSheetVariant;
+  }) => {
+    if (navItems.length === 0) {
+      toast.error("Legg til minst én låt først");
+      return;
+    }
+    if (exporting) return;
+    setExporting(true);
+    const toastId = toast.loading("Henter låter…");
+    try {
+      const songs: Song[] = [];
+      for (let i = 0; i < navItems.length; i++) {
+        const item = navItems[i];
+        setExportProgress(`Henter ${i + 1}/${navItems.length}: ${item.title}`);
+        toast.loading(`Henter ${i + 1}/${navItems.length}…`, { id: toastId });
+        const cached = qc.getQueryData<{
+          song: Parameters<typeof dbToSong>[0];
+          arrangement: Parameters<typeof dbToSong>[1];
+        }>(["songs", item.id]);
+        const row =
+          cached ?? (await getSongFn({ data: { id: item.id } }));
+        if (!cached) qc.setQueryData(["songs", item.id], row);
+        if (!row?.song) throw new Error(`Kunne ikke hente «${item.title}»`);
+        songs.push(dbToSong(row.song, row.arrangement));
+      }
+
+      await exportSetlistCharts({
+        setlistName: data?.setlist.name ?? "Setlist",
+        songs,
+        bundle: opts.bundle,
+        layout: opts.layout,
+        variant: opts.variant,
+        showLyrics: true,
+        semitones: 0,
+        onProgress: (done, total, title) => {
+          if (done >= total) {
+            setExportProgress("Pakker fil…");
+            toast.loading("Pakker fil…", { id: toastId });
+          } else {
+            setExportProgress(`Lager PDF ${done + 1}/${total}: ${title}`);
+            toast.loading(`Lager PDF ${done + 1}/${total}…`, { id: toastId });
+          }
+        },
+      });
+
+      toast.success(
+        opts.bundle === "combined" ? "Samlet PDF klar" : "ZIP klar",
+        { id: toastId },
+      );
+      setExportOpen(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Eksport feilet", { id: toastId });
+    } finally {
+      setExporting(false);
+      setExportProgress(null);
+    }
+  };
+
   const setlistLive = useMemo(() => {
     if (navItems.length === 0) return undefined;
     return {
@@ -279,6 +347,16 @@ function SetlistDetailPage() {
                 <Maximize2 className="h-4 w-4 mr-1" />
                 Start Live
               </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full font-mono uppercase tracking-wider text-xs min-h-11"
+                onClick={() => setExportOpen(true)}
+                disabled={navItems.length === 0 || exporting}
+              >
+                <Download className="h-4 w-4 mr-1" />
+                {exporting ? "Eksporterer…" : "Eksporter alle"}
+              </Button>
             </div>
 
             <div className="flex-1 min-h-0 flex flex-col">
@@ -377,6 +455,17 @@ function SetlistDetailPage() {
           )}
         </div>
       </main>
+
+      <SetlistExportDialog
+        open={exportOpen}
+        onOpenChange={(v) => {
+          if (!exporting) setExportOpen(v);
+        }}
+        songCount={navItems.length}
+        onConfirm={(opts) => void runSetlistExport(opts)}
+        busy={exporting}
+        progressLabel={exportProgress}
+      />
     </div>
   );
 }
