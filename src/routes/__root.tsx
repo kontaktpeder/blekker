@@ -9,7 +9,7 @@ import {
 } from "@tanstack/react-router";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/lib/theme";
-import { ThemeToggleFab } from "@/components/ThemeToggle";
+import { AppTabBar } from "@/components/AppTabBar";
 
 import appCss from "../styles.css?url";
 
@@ -146,7 +146,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <Outlet />
-        <ThemeToggleFab />
+        <AppTabBar />
         <Toaster />
       </ThemeProvider>
     </QueryClientProvider>

@@ -3,6 +3,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { useSongs, useDeleteSong } from "@/hooks/useSongs";
 import { Button } from "@/components/ui/button";
 import { TopNav } from "@/components/chart/TopNav";
+import { AppTabBarSpacer } from "@/components/AppTabBar";
 
 export const Route = createFileRoute("/songs/")({
   head: () => ({
@@ -91,6 +92,7 @@ function SongsPage() {
           ))}
         </ul>
       </div>
+      <AppTabBarSpacer />
     </div>
   );
 }

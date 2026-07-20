@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowDown, ArrowUp, Maximize2, Plus, Trash2 } from "lucide-react";
+import { Maximize2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import {
   useSetlist,
@@ -14,6 +14,8 @@ import {
 } from "@/hooks/useSongs";
 import { getSong } from "@/lib/songs.functions";
 import { SongChart, type SetlistLiveItem } from "@/components/chart/SongChart";
+import { SetlistSortableList } from "@/components/setlist/SetlistSortableList";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { dbToSong } from "@/lib/song-mapper";
 import { Button } from "@/components/ui/button";
 import {
@@ -140,13 +142,29 @@ function SetlistDetailPage() {
     setSearch({ song: songId });
   };
 
-  const move = (idx: number, dir: -1 | 1) => {
-    const ordered = items.map((i) => i.id);
-    const j = idx + dir;
-    if (j < 0 || j >= ordered.length) return;
-    [ordered[idx], ordered[j]] = [ordered[j], ordered[idx]];
-    reorder.mutate({ setlistId: id, orderedIds: ordered });
-  };
+  const sortableItems = useMemo(
+    () =>
+      items
+        .map((it) => {
+          const song = it.arrangements?.songs;
+          if (!song?.id) return null;
+          return {
+            itemId: it.id,
+            songId: song.id,
+            title: song.title,
+            artist: song.artist ?? null,
+            bpm: song.bpm ?? null,
+          };
+        })
+        .filter(Boolean) as {
+          itemId: string;
+          songId: string;
+          title: string;
+          artist: string | null;
+          bpm: number | null;
+        }[],
+    [items],
+  );
 
   const startLive = () => {
     if (navItems.length === 0) {
@@ -191,18 +209,21 @@ function SetlistDetailPage() {
 
   return (
     <div
-      className="flex h-dvh w-full overflow-hidden bg-background text-foreground"
+      className={cn(
+        "flex h-dvh w-full overflow-hidden bg-background text-foreground",
+        !liveSession && "pb-16 lg:pb-0",
+      )}
       data-live={liveSession ? "1" : undefined}
     >
       <aside
         className={cn(
           "z-50 flex flex-col border-r border-border bg-card/40 backdrop-blur-md transition-all duration-200",
-          "fixed inset-y-0 left-0 lg:static",
+          "fixed left-0 top-0 lg:static",
           liveSession
             ? "hidden"
             : sidebarOpen
-              ? "w-80 translate-x-0"
-              : "w-80 -translate-x-full lg:w-14 lg:translate-x-0",
+              ? "w-[min(22rem,92vw)] translate-x-0 bottom-16 lg:bottom-0"
+              : "w-[min(22rem,92vw)] -translate-x-full bottom-16 lg:bottom-0 lg:w-14 lg:translate-x-0",
         )}
       >
         <div className="flex items-center gap-2 px-3 h-14 border-b border-border">
@@ -215,18 +236,29 @@ function SetlistDetailPage() {
             ☰
           </button>
           {sidebarOpen && (
-            <Link
-              to="/setlists"
-              className="font-mono uppercase tracking-[0.18em] text-xs text-muted-foreground hover:text-foreground"
-            >
-              ← Setlists
-            </Link>
+            <>
+              <Link
+                to="/setlists"
+                className="font-mono uppercase tracking-[0.18em] text-xs text-muted-foreground hover:text-foreground min-h-11 inline-flex items-center"
+              >
+                ← Setlists
+              </Link>
+              <div className="ml-auto flex items-center gap-1">
+                <Link
+                  to="/songs"
+                  className="hidden sm:inline-flex font-mono uppercase tracking-[0.14em] text-[10px] text-muted-foreground hover:text-foreground min-h-11 px-2 items-center"
+                >
+                  Library
+                </Link>
+                <ThemeToggle size="sm" className="shadow-none" />
+              </div>
+            </>
           )}
         </div>
 
         {sidebarOpen && (
-          <>
-            <div className="px-4 pt-4 pb-3 border-b border-border space-y-3">
+          <div className="flex flex-1 flex-col min-h-0">
+            <div className="px-4 pt-4 pb-3 border-b border-border space-y-3 shrink-0">
               <div>
                 <p className="font-mono uppercase tracking-[0.18em] text-[10px] text-muted-foreground">
                   Setlist
@@ -234,6 +266,9 @@ function SetlistDetailPage() {
                 <h2 className="text-lg font-semibold mt-1 truncate">
                   {data.setlist.name}
                 </h2>
+                <p className="mt-1 text-[10px] font-mono text-muted-foreground tracking-wide">
+                  Hold ⋮⋮ og dra for å endre rekkefølge
+                </p>
               </div>
               <Button
                 size="sm"
@@ -246,89 +281,19 @@ function SetlistDetailPage() {
               </Button>
             </div>
 
-            <ol className="flex-1 overflow-y-auto p-2 space-y-1">
-              {items.length === 0 && (
-                <li className="text-sm text-muted-foreground p-3">
-                  No songs yet. Add one below.
-                </li>
-              )}
-              {items.map((it, i) => {
-                const song = it.arrangements?.songs;
-                if (!song) return null;
-                const active = song.id === activeSongId;
-                return (
-                  <li
-                    key={it.id}
-                    className={cn(
-                      "group rounded-md border flex items-start gap-2 px-3 py-2.5 transition-colors",
-                      active
-                        ? "bg-primary/10 border-primary/30"
-                        : "border-transparent hover:bg-accent",
-                    )}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => selectSong(song.id)}
-                      className="flex-1 text-left min-w-0 min-h-11"
-                    >
-                      <div className="flex gap-2">
-                        <span
-                          className={cn(
-                            "font-mono text-xs tabular-nums pt-0.5 w-5",
-                            active ? "text-primary" : "text-muted-foreground",
-                          )}
-                        >
-                          {String(i + 1).padStart(2, "0")}
-                        </span>
-                        <span className="min-w-0">
-                          <span
-                            className={cn(
-                              "block truncate text-sm font-medium",
-                              active && "text-primary",
-                            )}
-                          >
-                            {song.title}
-                          </span>
-                          <span className="block truncate text-xs text-muted-foreground font-mono">
-                            {song.artist ?? "—"} · {song.bpm ?? "—"} BPM
-                          </span>
-                        </span>
-                      </div>
-                    </button>
-                    <div className="flex flex-col opacity-100 lg:opacity-0 lg:group-hover:opacity-100">
-                      <button
-                        type="button"
-                        onClick={() => move(i, -1)}
-                        className="p-1.5 text-muted-foreground hover:text-foreground"
-                        aria-label="Move up"
-                      >
-                        <ArrowUp className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => move(i, 1)}
-                        className="p-1.5 text-muted-foreground hover:text-foreground"
-                        aria-label="Move down"
-                      >
-                        <ArrowDown className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (confirm("Remove from setlist?")) remove.mutate(it.id);
-                      }}
-                      className="p-2 text-muted-foreground hover:text-destructive setlist-delete opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
-                      aria-label="Remove"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </li>
-                );
-              })}
-            </ol>
+            <div className="flex-1 min-h-0 flex flex-col">
+              <SetlistSortableList
+                items={sortableItems}
+                activeSongId={activeSongId}
+                onSelect={selectSong}
+                onReorder={(orderedIds) =>
+                  reorder.mutate({ setlistId: id, orderedIds })
+                }
+                onRemove={(itemId) => remove.mutate(itemId)}
+              />
+            </div>
 
-            <div className="p-3 border-t border-border">
+            <div className="p-3 border-t border-border shrink-0">
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
@@ -371,13 +336,13 @@ function SetlistDetailPage() {
                 </PopoverContent>
               </Popover>
             </div>
-          </>
+          </div>
         )}
       </aside>
 
       <main className="flex-1 min-w-0 flex flex-col">
         {!liveSession && (
-          <div className="lg:hidden flex items-center h-12 px-3 border-b border-border bg-background/80 backdrop-blur gap-3">
+          <div className="lg:hidden flex items-center h-14 px-3 border-b border-border bg-background/80 backdrop-blur gap-3">
             <button
               type="button"
               onClick={() => setSidebarOpen(true)}

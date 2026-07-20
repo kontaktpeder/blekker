@@ -1,5 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ListMusic, Music2, Sparkles } from "lucide-react";
+import { AppTabBarSpacer } from "@/components/AppTabBar";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -18,7 +20,8 @@ export const Route = createFileRoute("/")({
 function Landing() {
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
-      <header className="px-6 md:px-12 pt-10 md:pt-16 pb-6">
+      <header className="px-6 md:px-12 pt-10 md:pt-16 pb-6 flex items-start justify-between gap-4">
+        <div>
         <p className="font-mono uppercase tracking-[0.3em] text-xs text-muted-foreground">
           Stagechart
         </p>
@@ -29,6 +32,8 @@ function Landing() {
           Paste any lyrics or chord sheet. Get a clean, transposable,
           performance-ready chart you and the band can actually read.
         </p>
+        </div>
+        <ThemeToggle size="sm" className="shadow-none shrink-0 hidden lg:inline-flex mt-1" />
       </header>
 
       <main className="px-6 md:px-12 pb-12 grid gap-4 md:grid-cols-3 max-w-6xl">
@@ -52,6 +57,7 @@ function Landing() {
           icon={<ListMusic className="h-5 w-5" />}
         />
       </main>
+      <AppTabBarSpacer />
     </div>
   );
 }

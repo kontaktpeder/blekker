@@ -74,6 +74,7 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Song>(song);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const liveShellRef = useRef<HTMLDivElement>(null);
   const transposeBySong = useRef<Record<string, number>>({});
   const updateSong = useUpdateSong();
 
@@ -125,15 +126,18 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
     setlistLive.onGoTo(next);
   }
 
+  const goSetlistRef = useRef(goSetlist);
+  goSetlistRef.current = goSetlist;
+
   function exitLive() {
     setMode("full");
     setlistLive?.onExitLive?.();
   }
 
-  // Horizontal swipe (iPad) for setlist prev/next — ignore mostly-vertical scrolls.
+  // Horizontal swipe on Live shell: left → next, right → previous (page-turn).
   useEffect(() => {
     if (!isLive || !hasSetlist) return;
-    const el = scrollRef.current;
+    const el = liveShellRef.current;
     if (!el) return;
     let startX = 0;
     let startY = 0;
@@ -150,9 +154,10 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
       tracking = false;
       const dx = e.changedTouches[0].clientX - startX;
       const dy = e.changedTouches[0].clientY - startY;
-      if (Math.abs(dx) < 80 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
-      if (dx < 0) goSetlist(1);
-      else goSetlist(-1);
+      // Prefer clear horizontal intent; lower threshold for iPad.
+      if (Math.abs(dx) < 56 || Math.abs(dx) < Math.abs(dy) * 1.15) return;
+      if (dx < 0) goSetlistRef.current(1);
+      else goSetlistRef.current(-1);
     };
 
     el.addEventListener("touchstart", onStart, { passive: true });
@@ -161,7 +166,7 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
       el.removeEventListener("touchstart", onStart);
       el.removeEventListener("touchend", onEnd);
     };
-  }, [isLive, hasSetlist, setlistIdx, setlistLen]);
+  }, [isLive, hasSetlist]);
 
   useEffect(() => {
     if (!isLive || !hasSetlist || !setlistLive) return;
@@ -311,6 +316,7 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
 
   return (
     <div
+      ref={isLive ? liveShellRef : undefined}
       className={cn(
         "flex flex-col h-full min-h-0",
         isLive && "fixed inset-0 z-50",
@@ -639,7 +645,7 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
                 type="button"
                 onClick={() => goSetlist(-1)}
                 disabled={!prevItem}
-                className="flex items-center justify-center gap-0.5 rounded-full h-10 min-w-10 px-3 hover:bg-accent active:scale-[0.97] transition-[transform,background-color] duration-150 disabled:opacity-25 font-mono text-[10px] tracking-[0.14em] uppercase outline-none focus-visible:ring-2 focus-visible:ring-ring [-webkit-tap-highlight-color:transparent]"
+                className="flex items-center justify-center gap-0.5 rounded-full h-11 min-w-11 px-3 hover:bg-accent active:scale-[0.97] transition-[transform,background-color] duration-150 disabled:opacity-25 font-mono text-[10px] tracking-[0.14em] uppercase outline-none focus-visible:ring-2 focus-visible:ring-ring [-webkit-tap-highlight-color:transparent]"
                 aria-label="Forrige låt"
               >
                 <ChevronLeft className="h-4 w-4 opacity-80" />
@@ -653,13 +659,21 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
                 type="button"
                 onClick={() => goSetlist(1)}
                 disabled={!nextItem}
-                className="flex items-center justify-center gap-0.5 rounded-full h-10 min-w-10 px-3 hover:bg-accent active:scale-[0.97] transition-[transform,background-color] duration-150 disabled:opacity-25 font-mono text-[10px] tracking-[0.14em] uppercase outline-none focus-visible:ring-2 focus-visible:ring-ring [-webkit-tap-highlight-color:transparent]"
+                className="flex items-center justify-center gap-0.5 rounded-full h-11 min-w-11 px-3 hover:bg-accent active:scale-[0.97] transition-[transform,background-color] duration-150 disabled:opacity-25 font-mono text-[10px] tracking-[0.14em] uppercase outline-none focus-visible:ring-2 focus-visible:ring-ring [-webkit-tap-highlight-color:transparent]"
                 aria-label="Neste låt"
               >
                 <span className="hidden sm:inline">Neste</span>
                 <ChevronRight className="h-4 w-4 opacity-80" />
               </button>
             </div>
+          )}
+          {hasSetlist && (
+            <p
+              className="pointer-events-none absolute left-1/2 z-10 -translate-x-1/2 font-mono text-[9px] tracking-[0.16em] uppercase text-muted-foreground/50"
+              style={{ bottom: "max(3.75rem, calc(env(safe-area-inset-bottom) + 2.75rem))" }}
+            >
+              Sveip ← neste · forrige →
+            </p>
           )}
         </>
       )}

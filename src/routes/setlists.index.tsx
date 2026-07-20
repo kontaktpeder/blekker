@@ -5,6 +5,7 @@ import { useSetlists, useCreateSetlist } from "@/hooks/useSongs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TopNav } from "@/components/chart/TopNav";
+import { AppTabBarSpacer } from "@/components/AppTabBar";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/setlists/")({
@@ -85,6 +86,7 @@ function SetlistsPage() {
           )}
         </ul>
       </div>
+      <AppTabBarSpacer />
     </div>
   );
 }

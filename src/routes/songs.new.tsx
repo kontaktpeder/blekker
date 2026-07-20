@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { TopNav } from "@/components/chart/TopNav";
+import { AppTabBarSpacer } from "@/components/AppTabBar";
 import { useCreateSongFromInput } from "@/hooks/useSongs";
 import { cn } from "@/lib/utils";
 
@@ -163,6 +164,7 @@ function NewSongPage() {
           )}
         </div>
       </div>
+      <AppTabBarSpacer />
     </div>
   );
 }
