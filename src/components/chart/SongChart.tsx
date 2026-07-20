@@ -150,9 +150,9 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
     if (!isLive || scrollSpeed === 0) return;
     const el = scrollRef.current;
     if (!el) return;
-    // ~1 viewport in ~4 / 3 / 2 minutes. Accrue fractional px — scrollTop
-    // is integer on many engines, so +0.08/frame alone never moves.
-    const pxPerSec = scrollSpeed === 1 ? 5 : scrollSpeed === 2 ? 7 : 10;
+    // MED ≈ current working pace; SLOW a notch under; FAST a bit more rise.
+    // ~1 viewport in ~4 / 3 / 2 minutes with fractional-px accrual below.
+    const pxPerSec = scrollSpeed === 1 ? 5 : scrollSpeed === 2 ? 8 : 12;
     let raf = 0;
     let last = performance.now();
     let carry = 0;
