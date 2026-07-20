@@ -8,8 +8,12 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { Toaster } from "@/components/ui/sonner";
+import { ThemeProvider } from "@/lib/theme";
+import { ThemeToggleFab } from "@/components/ThemeToggle";
 
 import appCss from "../styles.css?url";
+
+const themeBootScript = `(function(){try{var t=localStorage.getItem("blekker-theme");if(!t){var live=localStorage.getItem("blekker-live-theme");t=live==="paper"?"light":live==="stage"?"dark":"dark";}if(t==="light")document.documentElement.classList.remove("dark");else document.documentElement.classList.add("dark");}catch(e){document.documentElement.classList.add("dark");}})();`;
 
 function NotFoundComponent() {
   return (
@@ -74,17 +78,38 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Lovable App" },
-      { name: "description", content: "Stage Chart is a digital band chart workspace for designing and performing songs." },
+      {
+        name: "description",
+        content:
+          "Stage Chart is a digital band chart workspace for designing and performing songs.",
+      },
       { name: "author", content: "Lovable" },
       { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Stage Chart is a digital band chart workspace for designing and performing songs." },
+      {
+        property: "og:description",
+        content:
+          "Stage Chart is a digital band chart workspace for designing and performing songs.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
       { name: "twitter:title", content: "Lovable App" },
-      { name: "twitter:description", content: "Stage Chart is a digital band chart workspace for designing and performing songs." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/91dc1616-9ef3-4ecb-af42-8b089271a2ca/id-preview-5e6c285d--309dc8bf-a112-40c9-9475-293923702225.lovable.app-1779188487509.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/91dc1616-9ef3-4ecb-af42-8b089271a2ca/id-preview-5e6c285d--309dc8bf-a112-40c9-9475-293923702225.lovable.app-1779188487509.png" },
+      {
+        name: "twitter:description",
+        content:
+          "Stage Chart is a digital band chart workspace for designing and performing songs.",
+      },
+      {
+        property: "og:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/91dc1616-9ef3-4ecb-af42-8b089271a2ca/id-preview-5e6c285d--309dc8bf-a112-40c9-9475-293923702225.lovable.app-1779188487509.png",
+      },
+      {
+        name: "twitter:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/91dc1616-9ef3-4ecb-af42-8b089271a2ca/id-preview-5e6c285d--309dc8bf-a112-40c9-9475-293923702225.lovable.app-1779188487509.png",
+      },
+      { name: "color-scheme", content: "dark light" },
     ],
     links: [
       {
@@ -101,9 +126,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <HeadContent />
+        <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
       </head>
       <body>
         {children}
@@ -118,8 +144,11 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <Outlet />
-      <Toaster />
+      <ThemeProvider>
+        <Outlet />
+        <ThemeToggleFab />
+        <Toaster />
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

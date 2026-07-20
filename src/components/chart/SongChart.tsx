@@ -13,8 +13,6 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  Sun,
-  Moon,
 } from "lucide-react";
 import { transposeKey, type Section, type Song } from "@/lib/music";
 import { Button } from "@/components/ui/button";
@@ -28,22 +26,10 @@ import type { ExportFormat, ExportLayout, LeadSheetVariant } from "@/lib/pdf/lay
 import { useUpdateSong } from "@/hooks/useSongs";
 import { toast } from "sonner";
 import { resolvePlayOrder } from "@/lib/ug-form";
-import type { ChartThemeId } from "@/lib/engraving/renderer/theme";
+import { useTheme } from "@/lib/theme";
 
 type ViewMode = "full" | "chart" | "form" | "live";
 
-const LIVE_THEME_KEY = "blekker-live-theme";
-
-function readLiveTheme(): ChartThemeId {
-  if (typeof window === "undefined") return "stage";
-  try {
-    const v = localStorage.getItem(LIVE_THEME_KEY);
-    if (v === "paper" || v === "stage") return v;
-  } catch {
-    /* ignore */
-  }
-  return "stage";
-}
 const MODES: { id: ViewMode; label: string }[] = [
   { id: "full", label: "Full" },
   { id: "chart", label: "Chart" },
@@ -76,11 +62,12 @@ interface Props {
 }
 
 export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
+  const { theme: appTheme } = useTheme();
+  const liveChartTheme = appTheme === "light" ? "paper" : "stage";
   const [mode, setMode] = useState<ViewMode>(initialMode);
   const [semitones, setSemitones] = useState(0);
   const [showLyrics, setShowLyrics] = useState(true);
   const [scrollSpeed, setScrollSpeed] = useState(0);
-  const [liveTheme, setLiveTheme] = useState<ChartThemeId>("stage");
   const [exporting, setExporting] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -103,17 +90,6 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
     transposeBySong.current[song.id] = semitones;
   }, [song.id, semitones]);
 
-  useEffect(() => {
-    setLiveTheme(readLiveTheme());
-  }, []);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(LIVE_THEME_KEY, liveTheme);
-    } catch {
-      /* ignore */
-    }
-  }, [liveTheme]);
 
   useEffect(() => {
     if (initialMode === "live") setMode("live");
@@ -304,7 +280,7 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
       className={cn(
         "flex flex-col h-full min-h-0",
         isLive && "fixed inset-0 z-50",
-        isLive && (liveTheme === "paper" ? "bg-neutral-200" : "bg-background"),
+        isLive && "bg-background",
       )}
     >
       {!isLive && (
@@ -589,15 +565,6 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setLiveTheme((t) => (t === "stage" ? "paper" : "stage"))}
-                  className="p-1.5 hover:bg-accent rounded border-l border-border ml-0.5 pl-2 outline-none focus-visible:ring-2 focus-visible:ring-ring [-webkit-tap-highlight-color:transparent]"
-                  aria-label={liveTheme === "stage" ? "Lys live" : "Mørk live"}
-                  title={liveTheme === "stage" ? "Lys" : "Mørk"}
-                >
-                  {liveTheme === "stage" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-                </button>
-                <button
-                  type="button"
                   onClick={() => setShowLyrics((v) => !v)}
                   className="p-1.5 hover:bg-accent rounded border-l border-border ml-0.5 pl-2 outline-none focus-visible:ring-2 focus-visible:ring-ring [-webkit-tap-highlight-color:transparent]"
                   aria-label="Toggle lyrics"
@@ -661,12 +628,7 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
         ref={scrollRef}
         className={cn(
           "flex-1 min-h-0 overflow-y-auto",
-          isLive
-            ? cn(
-                "px-1 md:px-2 pb-6",
-                liveTheme === "paper" ? "bg-neutral-200" : "bg-[#0a0a0c]",
-              )
-            : "px-2 md:px-6 py-6",
+          isLive ? "px-1 md:px-2 pb-6 bg-background" : "px-2 md:px-6 py-6",
           isLive && (hasSetlist ? "pt-32 md:pt-20 pb-24" : "pt-24 md:pt-20"),
         )}
       >
@@ -677,12 +639,7 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
             style={{ maxWidth: 834 }}
           >
             <div>
-              <p
-                className={cn(
-                  "font-mono uppercase tracking-[0.2em] mb-2 text-[10px]",
-                  liveTheme === "paper" ? "text-neutral-500" : "text-muted-foreground/70",
-                )}
-              >
+              <p className="font-mono uppercase tracking-[0.2em] mb-2 text-[10px] text-muted-foreground/70">
                 Form
               </p>
               <FormStrip form={play.form} large />
@@ -691,7 +648,7 @@ export function SongChart({ song, initialMode = "full", setlistLive }: Props) {
               song={working}
               semitones={canEdit ? 0 : semitones}
               showLyrics={lyricsOn}
-              theme={liveTheme}
+              theme={liveChartTheme}
             />
           </div>
         ) : (
